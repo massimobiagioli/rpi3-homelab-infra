@@ -1,4 +1,4 @@
-.PHONY: help list-playbooks run-playbook check-connection test-ssh
+.PHONY: help list-playbooks run-playbook test-ssh
 
 ANSIBLE_PLAYBOOK = ansible-playbook
 ANSIBLE_INVENTORY = inventory.ini
@@ -22,10 +22,6 @@ else
 	@echo "🚀 Running playbook: $(PLAYBOOK).yml"
 	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/$(PLAYBOOK).yml
 endif
-
-check-connection: # Test SSH connection to all hosts
-	@echo "🔍 Testing connection to all hosts..."
-	ansible -i $(ANSIBLE_INVENTORY) all -m ping
 
 test-ssh: # Test direct SSH connection to raspberry pi
 	@echo "🔐 Testing direct SSH connection..."
