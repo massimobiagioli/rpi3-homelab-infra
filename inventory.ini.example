@@ -1,0 +1,2 @@
+[raspberry_pi]
+raspberrypi ansible_host=raspberrypi.local ansible_user=pi ansible_become=true

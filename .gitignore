@@ -1,0 +1,11 @@
+# Inventory file with real IPs/hosts
+inventory.ini
+
+# Playbook variables with sensitive data
+playbooks/vars/main.yml
+
+# IDE
+.vscode/
+
+# macOS
+.DS_Store

@@ -1,0 +1,26 @@
+---
+- name: Update Raspberry Pi
+  hosts: raspberry_pi
+  gather_facts: true
+  tasks:
+    - name: Update the package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Upgrade all packages to the latest version
+      apt:
+        upgrade: dist
+        autoclean: true
+        autoremove: true
+
+    - name: Check if a reboot is required
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Reboot the system if a reboot is required
+      reboot:
+        msg: "Rebooting the system to complete the update"
+        connect_timeout: 5
+      when: reboot_required.stat.exists
