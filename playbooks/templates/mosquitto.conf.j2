@@ -1,0 +1,21 @@
+# Mosquitto MQTT Configuration - SECURE VERSION
+# Authentication required - no anonymous access
+
+# Disable anonymous connections (security)
+allow_anonymous false
+
+# Password file for user authentication
+password_file /etc/mosquitto/passwd/pwfile
+
+# Listen on standard MQTT port
+listener 1883
+
+# Basic persistence
+persistence true
+persistence_location /var/lib/mosquitto/
+
+# Log to syslog (system logging)
+log_dest syslog
+log_type error
+log_type warning
+log_type notice

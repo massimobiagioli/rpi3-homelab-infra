@@ -104,6 +104,9 @@ cp main.yml.example main.yml
 
 - **`update`** - Update and upgrade all packages
 - **`mariadb`** - Install and configure MariaDB database
+- **`mariadb-cleanup`** - Completely remove MariaDB installation
+- **`mosquitto`** - Install and configure Mosquitto MQTT broker
+- **`mosquitto-cleanup`** - Completely remove Mosquitto installation
 - **`reboot`** - Safely reboot the cluster  
 - **`backup`** - Backup important configurations
 - **`monitoring`** - Deploy monitoring tools
@@ -144,6 +147,15 @@ make run-playbook-verbose PLAYBOOK=mariadb
 
 # Install MariaDB database
 make run-playbook PLAYBOOK=mariadb
+
+# Remove MariaDB completely
+make run-playbook PLAYBOOK=mariadb-cleanup
+
+# Install Mosquitto MQTT broker (with authentication)
+make run-playbook PLAYBOOK=mosquitto
+
+# Remove Mosquitto completely
+make run-playbook PLAYBOOK=mosquitto-cleanup
 
 # Run custom playbooks (when you create them)
 make run-playbook PLAYBOOK=backup

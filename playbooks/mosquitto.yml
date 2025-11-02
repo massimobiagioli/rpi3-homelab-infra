@@ -1,0 +1,212 @@
+---
+- name: Install and configure Mosquitto MQTT broker - BULLETPROOF VERSION
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install Mosquitto MQTT broker and clients
+      apt:
+        name:
+          - mosquitto
+          - mosquitto-clients
+        state: present
+
+    - name: Stop and disable Mosquitto service completely
+      systemd:
+        name: mosquitto
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: Kill any remaining Mosquitto processes
+      shell: pkill -f mosquitto || true
+      ignore_errors: true
+
+    - name: Backup original Mosquitto configuration
+      copy:
+        src: /etc/mosquitto/mosquitto.conf
+        dest: /etc/mosquitto/mosquitto.conf.backup
+        remote_src: true
+      ignore_errors: true
+
+    - name: Create clean main Mosquitto configuration
+      copy:
+        content: |
+          # Main Mosquitto configuration - DIRECT APPROACH
+          # This configuration is loaded directly by systemd
+          
+          # Basic settings
+          allow_anonymous false
+          password_file /etc/mosquitto/passwd/pwfile
+          
+          # Network
+          listener 1883
+          
+          # Persistence
+          persistence true
+          persistence_location /var/lib/mosquitto/
+          
+          # Logging
+          log_dest syslog
+          log_type error
+          log_type warning
+          log_type notice
+          
+          # Include other configs (if any)
+          include_dir /etc/mosquitto/conf.d
+        dest: /etc/mosquitto/mosquitto.conf
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+
+    - name: Remove conflicting configuration files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/mosquitto/conf.d/auth.conf
+        - /etc/mosquitto/conf.d/custom.conf
+        - /etc/mosquitto/conf.d/simple.conf
+        - /etc/mosquitto/conf.d/minimal.conf
+        - /etc/mosquitto/conf.d/secure.conf
+      ignore_errors: true
+
+    - name: Create Mosquitto user (if not exists)
+      user:
+        name: mosquitto
+        system: true
+        shell: /usr/sbin/nologin
+        home: /var/lib/mosquitto
+        create_home: false
+      failed_when: false
+
+    - name: Create required directories with correct ownership
+      file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "/var/lib/mosquitto", owner: "mosquitto", group: "mosquitto", mode: "0755" }
+        - { path: "/etc/mosquitto/passwd", owner: "mosquitto", group: "mosquitto", mode: "0755" }
+        - { path: "/var/log/mosquitto", owner: "mosquitto", group: "mosquitto", mode: "0755" }
+
+    - name: Create MQTT user password file
+      shell: |
+        mosquitto_passwd -c -b /etc/mosquitto/passwd/pwfile {{ vault_mqtt_username }} {{ vault_mqtt_password }}
+        chown mosquitto:mosquitto /etc/mosquitto/passwd/pwfile
+        chmod 600 /etc/mosquitto/passwd/pwfile
+      register: passwd_creation
+
+    - name: Verify password file was created correctly
+      stat:
+        path: /etc/mosquitto/passwd/pwfile
+      register: passwd_file_check
+
+    - name: Display password file info
+      debug:
+        msg: |
+          Password file status: {{ 'EXISTS' if passwd_file_check.stat.exists else 'MISSING' }}
+          File size: {{ passwd_file_check.stat.size | default('N/A') }} bytes
+          Owner: {{ passwd_file_check.stat.pw_name | default('N/A') }}
+          Permissions: {{ passwd_file_check.stat.mode | default('N/A') }}
+
+    - name: Force recreate password file if missing or invalid
+      shell: |
+        rm -f /etc/mosquitto/passwd/pwfile
+        mosquitto_passwd -c -b /etc/mosquitto/passwd/pwfile {{ vault_mqtt_username }} {{ vault_mqtt_password }}
+        chown mosquitto:mosquitto /etc/mosquitto/passwd/pwfile
+        chmod 600 /etc/mosquitto/passwd/pwfile
+        echo "Password file recreated successfully"
+      when: not passwd_file_check.stat.exists or passwd_file_check.stat.size == 0
+
+    - name: Test password file readability by mosquitto user
+      shell: sudo -u mosquitto cat /etc/mosquitto/passwd/pwfile
+      register: passwd_test
+      changed_when: false
+      failed_when: passwd_test.rc != 0
+
+    - name: Start and enable Mosquitto service
+      systemd:
+        name: mosquitto
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Wait for Mosquitto to be ready
+      wait_for:
+        port: 1883
+        host: localhost
+        delay: 3
+        timeout: 15
+
+    - name: Test MQTT authentication (first attempt)
+      shell: |
+        mosquitto_pub -h localhost -p 1883 -t "homelab/test" -m "Auth test $(date)" -u {{ vault_mqtt_username }} -P {{ vault_mqtt_password }}
+      register: auth_test_1
+      changed_when: false
+      ignore_errors: true
+
+    - name: If auth fails, restart service and retry
+      block:
+        - name: Restart Mosquitto service for auth refresh
+          systemd:
+            name: mosquitto
+            state: restarted
+            daemon_reload: true
+        
+        - name: Wait after restart
+          wait_for:
+            port: 1883
+            host: localhost
+            delay: 3
+            timeout: 10
+        
+        - name: Test MQTT authentication (second attempt)
+          shell: |
+            mosquitto_pub -h localhost -p 1883 -t "homelab/test" -m "Auth retry test $(date)" -u {{ vault_mqtt_username }} -P {{ vault_mqtt_password }}
+          register: auth_test_2
+          changed_when: false
+          failed_when: auth_test_2.rc != 0
+      when: auth_test_1.rc != 0
+
+    - name: Set final auth test result
+      set_fact:
+        final_auth_test: "{{ auth_test_2 if auth_test_1.rc != 0 else auth_test_1 }}"
+
+    - name: Display installation results
+      debug:
+        msg: |
+          🦟 Mosquitto MQTT Broker - AUTHENTICATION FIXED!
+          
+          ✅ Service Status: RUNNING
+          🔐 Authentication: Username/Password WORKING
+          👤 User: {{ vault_mqtt_username }}
+          🔒 Password: {{ vault_mqtt_password }}
+          📁 Config: /etc/mosquitto/mosquitto.conf
+          📋 Password File: /etc/mosquitto/passwd/pwfile
+          
+          🧪 Authentication Test: {{ 'SUCCESS' if final_auth_test.rc == 0 else 'FAILED' }}
+          
+          🔧 Working Commands:
+          mosquitto_pub -h {{ ansible_default_ipv4.address }} -p 1883 -t "homelab/test" -m "Hello!" -u {{ vault_mqtt_username }} -P {{ vault_mqtt_password }}
+          mosquitto_sub -h {{ ansible_default_ipv4.address }} -p 1883 -t "homelab/#" -u {{ vault_mqtt_username }} -P {{ vault_mqtt_password }}
+          
+          💡 Password file has been validated and authentication is working!
+
+  handlers:
+    - name: Restart mosquitto
+      systemd:
+        name: mosquitto
+        state: restarted
+        daemon_reload: true

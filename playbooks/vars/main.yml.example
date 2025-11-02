@@ -3,7 +3,11 @@
 # Copy this file to main.yml and customize your values
 
 # MariaDB Configuration
-vault_mariadb_user_password: "your_homelab_user_password_here"
+vault_mariadb_user_password: "your_homelab_mariadb_user_password"
+
+# MQTT/Mosquitto Configuration
+vault_mqtt_username: "your_homelab_mqtt_username"
+vault_mqtt_password: "your_homelab_mqtt_password"
 
 # General Settings  
 timezone: "Europe/Rome"

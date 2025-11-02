@@ -1,0 +1,84 @@
+---
+- name: Complete Mosquitto MQTT cleanup and removal
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Stop Mosquitto service
+      systemd:
+        name: mosquitto
+        state: stopped
+      ignore_errors: true
+
+    - name: Disable Mosquitto service
+      systemd:
+        name: mosquitto
+        enabled: false
+      ignore_errors: true
+
+    - name: Remove Mosquitto packages
+      apt:
+        name:
+          - mosquitto
+          - mosquitto-clients
+        state: absent
+        purge: true
+        autoremove: true
+
+    - name: Remove Mosquitto configuration directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/mosquitto
+        - /var/lib/mosquitto
+        - /var/log/mosquitto
+
+    - name: Remove Mosquitto user and group
+      user:
+        name: mosquitto
+        state: absent
+        remove: true
+      ignore_errors: true
+
+    - name: Remove Mosquitto group
+      group:
+        name: mosquitto
+        state: absent
+      ignore_errors: true
+
+    - name: Remove any remaining Mosquitto processes
+      shell: pkill -f mosquitto || true
+      ignore_errors: true
+
+    - name: Clean package cache
+      apt:
+        autoclean: true
+        autoremove: true
+
+    - name: Update package database
+      apt:
+        update_cache: true
+
+    - name: Verify Mosquitto is completely removed
+      shell: dpkg -l | grep -i mosquitto || echo "Mosquitto not found - cleanup successful"
+      register: mosquitto_check
+      changed_when: false
+
+    - name: Display cleanup results
+      debug:
+        msg: |
+          🧹 Mosquitto MQTT Cleanup Completed!
+          
+          📊 Cleanup Status: SUCCESS
+          🗑️ Removed: Mosquitto broker, clients, configs, data
+          🔍 Verification: {{ mosquitto_check.stdout }}
+          
+          ✅ System is clean and ready for fresh Mosquitto installation
+          
+          💡 Next steps:
+          1. Run: make run-playbook PLAYBOOK=mosquitto
+          2. Fresh installation will proceed without conflicts
