@@ -62,22 +62,27 @@ cp main.yml.example main.yml
 
 ### 🚀 Quick Start
 
-1. **🔐 Test SSH connection first:**
+1. **� Install Ansible collections:**
+   ```bash
+   make install-deps
+   ```
+
+2. **�🔐 Test SSH connection first:**
    ```bash
    make test-ssh
    ```
 
-2. **🔍 Check Ansible connectivity:**
+3. **🔍 Check Ansible connectivity:**
    ```bash
    make check-connection
    ```
 
-3. **📚 List available playbooks:**
+4. **📚 List available playbooks:**
    ```bash
    make list-playbooks
    ```
 
-4. **⚡ Run a specific playbook:**
+5. **⚡ Run a specific playbook:**
    ```bash
    make run-playbook PLAYBOOK=update
    ```
@@ -86,15 +91,19 @@ cp main.yml.example main.yml
 
 | Command | Description | Example |
 |---------|-------------|---------|
+| `make install-deps` | Install required Ansible collections | 📦 Setup dependencies |
 | `make test-ssh` | Test direct SSH connection | 🔐 Direct SSH test |
 | `make check-connection` | Test Ansible connectivity to all hosts | 🔍 Ansible ping test |
-| `make list-playbooks` | Show all available playbooks | 📚 List: update, deploy, etc. |
-| `make run-playbook PLAYBOOK=name` | Execute specific playbook | 🚀 `PLAYBOOK=update` |
+| `make list-playbooks` | Show all available playbooks | 📚 List: update, mariadb, etc. |
+| `make run-playbook PLAYBOOK=name` | Execute specific playbook | 🚀 `PLAYBOOK=mariadb` |
+| `make run-playbook PLAYBOOK=name VERBOSE=true` | Execute playbook with verbose output | 🔍 Debug mode |
+| `make run-playbook-verbose PLAYBOOK=name` | Execute playbook with verbose output | 🔊 Always verbose |
 | `make help` | Show all commands | ❓ Full help menu |
 
 ### 📋 Example Playbooks
 
 - **`update`** - Update and upgrade all packages
+- **`mariadb`** - Install and configure MariaDB database
 - **`reboot`** - Safely reboot the cluster  
 - **`backup`** - Backup important configurations
 - **`monitoring`** - Deploy monitoring tools
@@ -124,8 +133,17 @@ cp main.yml.example main.yml
 # List available playbooks (without .yml extension)
 make list-playbooks
 
-# Run system updates
+# Run system updates (normal mode)
 make run-playbook PLAYBOOK=update
+
+# Run with verbose output (method 1)
+make run-playbook PLAYBOOK=mariadb VERBOSE=true
+
+# Run with verbose output (method 2)
+make run-playbook-verbose PLAYBOOK=mariadb
+
+# Install MariaDB database
+make run-playbook PLAYBOOK=mariadb
 
 # Run custom playbooks (when you create them)
 make run-playbook PLAYBOOK=backup

@@ -1,0 +1,10 @@
+---
+# Example variables for HomeLab playbooks
+# Copy this file to main.yml and customize your values
+
+# MariaDB Configuration
+vault_mariadb_user_password: "your_homelab_user_password_here"
+
+# General Settings  
+timezone: "Europe/Rome"
+locale: "it_IT.UTF-8"

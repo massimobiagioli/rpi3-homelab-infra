@@ -1,0 +1,113 @@
+---
+- name: Install and configure MariaDB on Raspberry Pi
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install MariaDB server and client
+      apt:
+        name:
+          - mariadb-server
+          - mariadb-client
+          - python3-pymysql
+          - expect
+        state: present
+
+    - name: Start and enable MariaDB service
+      systemd:
+        name: mariadb
+        state: started
+        enabled: true
+
+    - name: Check if MariaDB is running
+      systemd:
+        name: mariadb
+      register: mariadb_service
+
+    - name: Wait for MariaDB to be ready
+      wait_for:
+        port: 3306
+        host: localhost
+        delay: 5
+        timeout: 30
+
+    - name: Secure MariaDB installation (SIMPLE METHOD)
+      expect:
+        command: mysql_secure_installation
+        responses:
+          'Enter current password for root': ''
+          'Switch to unix_socket authentication': 'n'
+          'Set root password': 'Y'
+          'Change the root password': 'Y'
+          'New password': '{{ vault_mariadb_user_password }}'
+          'Re-enter new password': '{{ vault_mariadb_user_password }}'
+          'Remove anonymous users': 'Y'
+          'Disallow root login remotely': 'Y'
+          'Remove test database': 'Y'
+          'Reload privilege tables': 'Y'
+        timeout: 60
+
+    - name: Create homelab database
+      shell: mysql -u root -p'{{ vault_mariadb_user_password }}' -e "CREATE DATABASE IF NOT EXISTS homelab CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+      changed_when: false
+
+    - name: Create homelab user
+      shell: >
+        mysql -u root -p'{{ vault_mariadb_user_password }}' -e
+        "CREATE USER IF NOT EXISTS 'homelab_user'@'%' IDENTIFIED BY '{{ vault_mariadb_user_password }}';
+        GRANT ALL PRIVILEGES ON homelab.* TO 'homelab_user'@'%';
+        FLUSH PRIVILEGES;"
+      changed_when: false
+
+    - name: Create MariaDB configuration file
+      template:
+        src: templates/my.cnf.j2
+        dest: /etc/mysql/mariadb.conf.d/99-custom.cnf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart mariadb
+
+    - name: Remove the problematic .my.cnf creation task
+      file:
+        path: /root/.my.cnf
+        state: absent
+
+    - name: Test database connection
+      shell: mysql -u homelab_user -p'{{ vault_mariadb_user_password }}' homelab -e "SELECT 'Connection successful' as status;"
+      register: db_connection_test
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display MariaDB status
+      debug:
+        msg: |
+          MariaDB installation completed!
+          
+          📊 Service Status: {{ mariadb_service.status.ActiveState }}
+          🔐 Root Authentication: password authentication configured
+          📁 Database: homelab
+          👤 User: homelab_user
+          🔒 Password: configured in vars/main.yml
+          
+          🔧 Connect as root:
+          mysql -u root -p
+          
+          🌐 Connect as homelab_user:
+          mysql -h {{ ansible_default_ipv4.address }} -u homelab_user -p homelab
+          
+          � Connection Test: {{ 'SUCCESS' if db_connection_test.rc == 0 else 'FAILED - check logs' }}
+
+  handlers:
+    - name: Restart mariadb
+      systemd:
+        name: mariadb
+        state: restarted

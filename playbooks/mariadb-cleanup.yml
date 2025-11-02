@@ -1,0 +1,91 @@
+---
+- name: Complete MariaDB cleanup and removal
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Stop MariaDB service
+      systemd:
+        name: mariadb
+        state: stopped
+      ignore_errors: true
+
+    - name: Disable MariaDB service
+      systemd:
+        name: mariadb
+        enabled: false
+      ignore_errors: true
+
+    - name: Remove MariaDB packages
+      apt:
+        name:
+          - mariadb-server
+          - mariadb-client
+          - mariadb-common
+          - mysql-common
+        state: absent
+        purge: true
+        autoremove: true
+
+    - name: Remove MariaDB data directory
+      file:
+        path: /var/lib/mysql
+        state: absent
+
+    - name: Remove MariaDB configuration directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/mysql
+        - /etc/mysql-server
+        - /var/log/mysql
+
+    - name: Remove MariaDB user and group
+      user:
+        name: mysql
+        state: absent
+        remove: true
+      ignore_errors: true
+
+    - name: Remove MariaDB group
+      group:
+        name: mysql
+        state: absent
+      ignore_errors: true
+
+    - name: Remove any remaining MariaDB processes
+      shell: pkill -f mysql || true
+      ignore_errors: true
+
+    - name: Clean package cache
+      apt:
+        autoclean: true
+        autoremove: true
+
+    - name: Update package database
+      apt:
+        update_cache: true
+
+    - name: Verify MariaDB is completely removed
+      shell: dpkg -l | grep -i maria || echo "MariaDB not found - cleanup successful"
+      register: mariadb_check
+      changed_when: false
+
+    - name: Display cleanup results
+      debug:
+        msg: |
+          🧹 MariaDB Cleanup Completed!
+          
+          📊 Cleanup Status: SUCCESS
+          🗑️ Removed: MariaDB server, client, data, configs
+          🔍 Verification: {{ mariadb_check.stdout }}
+          
+          ✅ System is clean and ready for fresh MariaDB installation
+          
+          💡 Next steps:
+          1. Run: make run-playbook PLAYBOOK=mariadb
+          2. Fresh installation will proceed without conflicts

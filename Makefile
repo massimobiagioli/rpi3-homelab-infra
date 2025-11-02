@@ -1,4 +1,4 @@
-.PHONY: help list-playbooks run-playbook test-ssh
+.PHONY: help list-playbooks run-playbook test-ssh install-deps
 
 ANSIBLE_PLAYBOOK = ansible-playbook
 ANSIBLE_INVENTORY = inventory.ini
@@ -12,17 +12,25 @@ list-playbooks: # List all available playbooks
 	@echo "📚 Available Playbooks:"
 	@find playbooks -name "*.yml" -type f -not -path "playbooks/vars/*" | sed 's|playbooks/||' | sed 's|\.yml$$||' | sort | while read playbook; do echo "  📋 $$playbook"; done
 
-run-playbook: # Run a playbook (usage: make run-playbook PLAYBOOK=update)
+run-playbook: # Run a playbook (usage: make run-playbook PLAYBOOK=update [VERBOSE=true])
 ifndef PLAYBOOK
 	@echo "❌ Error: Please specify a playbook name"
-	@echo "Usage: make run-playbook PLAYBOOK=update"
+	@echo "Usage: make run-playbook PLAYBOOK=update [VERBOSE=true]"
 	@echo ""
 	@make list-playbooks
 else
 	@echo "🚀 Running playbook: $(PLAYBOOK).yml"
+ifdef VERBOSE
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/$(PLAYBOOK).yml -vvv
+else
 	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/$(PLAYBOOK).yml
+endif
 endif
 
 test-ssh: # Test direct SSH connection to raspberry pi
 	@echo "🔐 Testing direct SSH connection..."
 	ssh -o ConnectTimeout=5 massimo@raspberrypi.local "echo 'SSH connection successful!'"
+
+install-deps: # Install required Ansible collections
+	@echo "📦 Installing Ansible collections..."
+	ansible-galaxy collection install -r requirements.yml

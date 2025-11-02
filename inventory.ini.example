@@ -1,2 +1,2 @@
 [raspberry_pi]
-raspberrypi ansible_host=raspberrypi.local ansible_user=pi ansible_become=true
+raspberrypi ansible_host=raspberrypi.local ansible_user=pi ansible_become=true ansible_ssh_common_args='-o ServerAliveInterval=60 -o ServerAliveCountMax=3'
