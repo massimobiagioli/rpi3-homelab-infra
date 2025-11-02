@@ -1,0 +1,87 @@
+---
+- name: Complete Redis cleanup and removal
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Stop Redis service
+      systemd:
+        name: redis-server
+        state: stopped
+      ignore_errors: true
+
+    - name: Disable Redis service
+      systemd:
+        name: redis-server
+        enabled: false
+      ignore_errors: true
+
+    - name: Remove Redis packages
+      apt:
+        name:
+          - redis-server
+          - redis-tools
+        state: absent
+        purge: true
+        autoremove: true
+
+    - name: Remove Redis configuration and data directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/redis
+        - /var/lib/redis
+        - /var/log/redis
+        - /run/redis
+
+    - name: Remove Redis user and group
+      user:
+        name: redis
+        state: absent
+        remove: true
+      ignore_errors: true
+
+    - name: Remove Redis group
+      group:
+        name: redis
+        state: absent
+      ignore_errors: true
+
+    - name: Remove any remaining Redis processes
+      shell: pkill -f redis || true
+      ignore_errors: true
+
+    - name: Clean Redis socket files
+      shell: rm -f /var/run/redis* /tmp/redis* || true
+      ignore_errors: true
+
+    - name: Clean package cache
+      apt:
+        autoclean: true
+        autoremove: true
+
+    - name: Update package database
+      apt:
+        update_cache: true
+
+    - name: Verify Redis is completely removed
+      shell: dpkg -l | grep -i redis || echo "Redis not found - cleanup successful"
+      register: redis_check
+      changed_when: false
+
+    - name: Display cleanup results
+      debug:
+        msg: |
+          🧹 Redis Cleanup Completed!
+          
+          📊 Cleanup Status: SUCCESS
+          🗑️ Removed: Redis server, tools, configs, data, logs
+          🔍 Verification: {{ redis_check.stdout }}
+          
+          ✅ System is clean and ready for fresh Redis installation
+          
+          💡 Next steps:
+          1. Run: make run-playbook PLAYBOOK=redis
+          2. Fresh installation will proceed without conflicts

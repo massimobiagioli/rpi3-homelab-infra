@@ -1,0 +1,57 @@
+# Redis configuration for Raspberry Pi ARM v7
+# Optimized for limited resources and ARM architecture
+
+# Network settings
+bind 127.0.0.1 ::1
+port 6379
+timeout 300
+tcp-keepalive 300
+
+# General settings
+daemonize yes
+pidfile /var/run/redis/redis-server.pid
+loglevel notice
+logfile /var/log/redis/redis-server.log
+databases 16
+
+# Memory management (optimized for Raspberry Pi)
+# Use about 1/4 of available RAM for Redis
+maxmemory 256mb
+maxmemory-policy allkeys-lru
+
+# Persistence settings (optimized for SD card)
+save 900 1
+save 300 10
+save 60 10000
+
+# Reduce disk writes to preserve SD card
+stop-writes-on-bgsave-error yes
+rdbcompression yes
+rdbchecksum yes
+dbfilename dump.rdb
+dir /var/lib/redis
+
+# AOF settings (disabled by default for better performance on SD card)
+appendonly no
+appendfilename "appendonly.aof"
+appendfsync everysec
+no-appendfsync-on-rewrite no
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+
+# Performance optimizations for ARM
+# Disable transparent huge pages support
+disable-thp yes
+
+# Client settings
+maxclients 128
+
+# Slow log settings
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+
+# Security settings
+# requirepass will be set by playbook if password is configured
+
+# ARM v7 specific optimizations
+hz 10

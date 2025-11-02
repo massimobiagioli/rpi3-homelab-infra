@@ -9,6 +9,9 @@ vault_mariadb_user_password: "your_homelab_mariadb_user_password"
 vault_mqtt_username: "your_homelab_mqtt_username"
 vault_mqtt_password: "your_homelab_mqtt_password"
 
+# Redis Configuration
+vault_redis_password: "your_homelab_redis_password"
+
 # General Settings  
 timezone: "Europe/Rome"
 locale: "it_IT.UTF-8"

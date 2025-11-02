@@ -1,0 +1,170 @@
+---
+- name: Install and configure Redis on Raspberry Pi ARM v7
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install Redis server and tools
+      apt:
+        name:
+          - redis-server
+          - redis-tools
+        state: present
+
+    - name: Stop Redis before configuration
+      systemd:
+        name: redis-server
+        state: stopped
+      ignore_errors: true
+
+    - name: Backup original Redis configuration
+      copy:
+        src: /etc/redis/redis.conf
+        dest: /etc/redis/redis.conf.backup
+        remote_src: true
+        backup: true
+      ignore_errors: true
+
+    - name: Create Redis configuration optimized for Raspberry Pi
+      template:
+        src: templates/redis.conf.j2
+        dest: /etc/redis/redis.conf
+        owner: redis
+        group: redis
+        mode: '0640'
+        backup: true
+
+    - name: Create Redis log directory
+      file:
+        path: /var/log/redis
+        state: directory
+        owner: redis
+        group: redis
+        mode: '0755'
+
+    - name: Set Redis password if configured
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^# requirepass'
+        line: 'requirepass {{ vault_redis_password }}'
+        backup: true
+      when: vault_redis_password is defined and vault_redis_password != ""
+      notify: Restart redis
+
+    - name: Ensure Redis data directory exists
+      file:
+        path: /var/lib/redis
+        state: directory
+        owner: redis
+        group: redis
+        mode: '0755'
+
+    - name: Start and enable Redis service
+      systemd:
+        name: redis-server
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Wait for Redis to be ready
+      wait_for:
+        port: 6379
+        host: localhost
+        delay: 2
+        timeout: 15
+
+    - name: Test Redis connection (no auth)
+      shell: redis-cli ping
+      register: redis_ping_test
+      changed_when: false
+      ignore_errors: true
+      when: vault_redis_password is not defined or vault_redis_password == ""
+
+    - name: Test Redis connection (with auth)
+      shell: redis-cli -a {{ vault_redis_password }} ping
+      register: redis_auth_test
+      changed_when: false
+      ignore_errors: true
+      when: vault_redis_password is defined and vault_redis_password != ""
+
+    - name: Test Redis basic operations
+      shell: |
+        {% if vault_redis_password is defined and vault_redis_password != "" %}
+        redis-cli -a {{ vault_redis_password }} set test_key "Redis on ARM v7 works!" && \
+        redis-cli -a {{ vault_redis_password }} get test_key && \
+        redis-cli -a {{ vault_redis_password }} del test_key
+        {% else %}
+        redis-cli set test_key "Redis on ARM v7 works!" && \
+        redis-cli get test_key && \
+        redis-cli del test_key
+        {% endif %}
+      register: redis_ops_test
+      changed_when: false
+      ignore_errors: true
+
+    - name: Get Redis info
+      shell: |
+        {% if vault_redis_password is defined and vault_redis_password != "" %}
+        redis-cli -a {{ vault_redis_password }} info memory | head -5
+        {% else %}
+        redis-cli info memory | head -5
+        {% endif %}
+      register: redis_memory_info
+      changed_when: false
+      ignore_errors: true
+
+    - name: Check Redis service status
+      systemd:
+        name: redis-server
+      register: redis_service
+
+    - name: Display Redis installation status
+      debug:
+        msg: |
+          🔴 Redis Installation Completed!
+          
+          📊 Service Status: {{ redis_service.status.ActiveState }}
+          🌐 Port: 6379 (localhost)
+          {% if vault_redis_password is defined and vault_redis_password != "" %}
+          🔐 Security: Password authentication enabled
+          🔒 Password: configured in vars/main.yml
+          🧪 Auth Test: {{ 'SUCCESS' if redis_auth_test.rc == 0 else 'FAILED' }}
+          {% else %}
+          🔓 Security: No password (local access only)
+          🧪 Ping Test: {{ 'SUCCESS' if redis_ping_test.rc == 0 else 'FAILED' }}
+          {% endif %}
+          📁 Config: /etc/redis/redis.conf (ARM v7 optimized)
+          📋 Logs: /var/log/redis/redis-server.log
+          
+          ✅ Operations Test: {{ 'SUCCESS' if redis_ops_test.rc == 0 else 'FAILED' }}
+          💾 Memory Info:
+          {{ redis_memory_info.stdout_lines | join('\n          ') }}
+          
+          🔧 Test Commands:
+          {% if vault_redis_password is defined and vault_redis_password != "" %}
+          # With authentication:
+          redis-cli -h {{ ansible_default_ipv4.address }} -p 6379 -a {{ vault_redis_password }} ping
+          redis-cli -h {{ ansible_default_ipv4.address }} -p 6379 -a {{ vault_redis_password }} set mykey "Hello Redis!"
+          redis-cli -h {{ ansible_default_ipv4.address }} -p 6379 -a {{ vault_redis_password }} get mykey
+          {% else %}
+          # No authentication needed:
+          redis-cli -h {{ ansible_default_ipv4.address }} -p 6379 ping
+          redis-cli -h {{ ansible_default_ipv4.address }} -p 6379 set mykey "Hello Redis!"
+          redis-cli -h {{ ansible_default_ipv4.address }} -p 6379 get mykey
+          {% endif %}
+          
+          🎯 Redis is ready for high-performance caching on ARM v7!
+
+  handlers:
+    - name: Restart redis
+      systemd:
+        name: redis-server
+        state: restarted

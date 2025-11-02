@@ -107,6 +107,8 @@ cp main.yml.example main.yml
 - **`mariadb-cleanup`** - Completely remove MariaDB installation
 - **`mosquitto`** - Install and configure Mosquitto MQTT broker
 - **`mosquitto-cleanup`** - Completely remove Mosquitto installation
+- **`redis`** - Install and configure Redis cache server (ARM v7 optimized)
+- **`redis-cleanup`** - Completely remove Redis installation
 - **`reboot`** - Safely reboot the cluster  
 - **`backup`** - Backup important configurations
 - **`monitoring`** - Deploy monitoring tools
@@ -156,6 +158,12 @@ make run-playbook PLAYBOOK=mosquitto
 
 # Remove Mosquitto completely
 make run-playbook PLAYBOOK=mosquitto-cleanup
+
+# Install Redis cache server (ARM v7 optimized)
+make run-playbook PLAYBOOK=redis
+
+# Remove Redis completely
+make run-playbook PLAYBOOK=redis-cleanup
 
 # Run custom playbooks (when you create them)
 make run-playbook PLAYBOOK=backup
