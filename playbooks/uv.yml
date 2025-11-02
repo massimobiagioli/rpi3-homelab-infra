@@ -1,0 +1,85 @@
+---
+- name: Install UV Python package manager - DIRECT ARM BINARY
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install basic dependencies
+      apt:
+        name:
+          - curl
+          - ca-certificates
+        state: present
+
+    - name: Check system architecture
+      shell: uname -m
+      register: system_arch
+      changed_when: false
+
+    - name: Download UV binary for ARM
+      get_url:
+        url: "https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-unknown-linux-gnu.tar.gz"
+        dest: "/tmp/uv-arm.tar.gz"
+        mode: '0644'
+        timeout: 60
+
+    - name: Extract UV binary
+      unarchive:
+        src: "/tmp/uv-arm.tar.gz"
+        dest: "/tmp/"
+        remote_src: true
+
+    - name: Copy UV binary to system location
+      copy:
+        src: "/tmp/uv-aarch64-unknown-linux-gnu/uv"
+        dest: "/usr/local/bin/uv"
+        mode: '0755'
+        owner: root
+        group: root
+        remote_src: true
+
+    - name: Verify UV installation
+      shell: /usr/local/bin/uv --version
+      register: uv_verify
+      changed_when: false
+
+    - name: Test UV basic functionality
+      shell: |
+        cd /tmp
+        /usr/local/bin/uv --help > /dev/null
+        /usr/local/bin/uv pip --help > /dev/null
+        echo "UV functionality verified"
+      register: uv_test
+      changed_when: false
+
+    - name: Cleanup temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/uv-arm.tar.gz"
+        - "/tmp/uv-aarch64-unknown-linux-gnu"
+
+    - name: Display installation results
+      debug:
+        msg: |
+          🐍 UV Python Package Manager - DIRECT INSTALLATION
+          
+          ✅ Status: INSTALLED
+          🏗️ Architecture: {{ system_arch.stdout }}
+          📦 Version: {{ uv_verify.stdout }}
+          📍 Location: /usr/local/bin/uv
+          🧪 Test: {{ 'SUCCESS' if uv_test.rc == 0 else 'FAILED' }}
+          
+          🚀 Ready to use:
+          uv --version
+          uv venv myproject
+          uv pip install requests
+          
+          💡 UV is installed and working!

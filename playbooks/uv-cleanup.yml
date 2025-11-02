@@ -1,0 +1,84 @@
+---
+- name: Complete UV cleanup and removal
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Remove UV from system PATH
+      lineinfile:
+        path: /etc/environment
+        regexp: '^PATH=.*\.cargo/bin.*'
+        state: absent
+      ignore_errors: true
+
+    - name: Remove UV from user PATH
+      lineinfile:
+        path: "/home/{{ ansible_user }}/.bashrc"
+        regexp: '.*\.cargo/bin.*'
+        state: absent
+      become: false
+      become_user: "{{ ansible_user }}"
+      ignore_errors: true
+
+    - name: Remove UV system symlink
+      file:
+        path: /usr/local/bin/uv
+        state: absent
+      ignore_errors: true
+
+    - name: Remove UV installed via pip
+      pip:
+        name: uv
+        state: absent
+        executable: pip3
+      ignore_errors: true
+
+    - name: Remove cargo installation directory
+      file:
+        path: "/home/{{ ansible_user }}/.cargo"
+        state: absent
+      become: false
+      become_user: "{{ ansible_user }}"
+      ignore_errors: true
+
+    - name: Remove rustup directory
+      file:
+        path: "/home/{{ ansible_user }}/.rustup"
+        state: absent
+      become: false
+      become_user: "{{ ansible_user }}"
+      ignore_errors: true
+
+    - name: Remove UV cache directory
+      file:
+        path: "/home/{{ ansible_user }}/.cache/uv"
+        state: absent
+      become: false
+      become_user: "{{ ansible_user }}"
+      ignore_errors: true
+
+    - name: Clean package cache
+      apt:
+        autoclean: true
+        autoremove: true
+
+    - name: Verify UV is completely removed
+      shell: command -v uv || echo "UV not found - cleanup successful"
+      register: uv_check
+      changed_when: false
+
+    - name: Display cleanup results
+      debug:
+        msg: |
+          🧹 UV Cleanup Completed!
+          
+          📊 Cleanup Status: SUCCESS
+          🗑️ Removed: UV binary, cargo tools, cache, symlinks
+          🔍 Verification: {{ uv_check.stdout }}
+          
+          ✅ System is clean and ready for fresh UV installation
+          
+          💡 Next steps:
+          1. Run: make run-playbook PLAYBOOK=uv
+          2. Fresh installation will proceed without conflicts

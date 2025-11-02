@@ -109,6 +109,8 @@ cp main.yml.example main.yml
 - **`mosquitto-cleanup`** - Completely remove Mosquitto installation
 - **`redis`** - Install and configure Redis cache server (ARM v7 optimized)
 - **`redis-cleanup`** - Completely remove Redis installation
+- **`uv`** - Install UV Python package manager (ultra-fast)
+- **`uv-cleanup`** - Completely remove UV installation
 - **`reboot`** - Safely reboot the cluster  
 - **`backup`** - Backup important configurations
 - **`monitoring`** - Deploy monitoring tools
@@ -164,6 +166,12 @@ make run-playbook PLAYBOOK=redis
 
 # Remove Redis completely
 make run-playbook PLAYBOOK=redis-cleanup
+
+# Install UV Python package manager (ultra-fast)
+make run-playbook PLAYBOOK=uv
+
+# Remove UV completely
+make run-playbook PLAYBOOK=uv-cleanup
 
 # Run custom playbooks (when you create them)
 make run-playbook PLAYBOOK=backup
