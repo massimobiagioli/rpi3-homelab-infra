@@ -1,4 +1,0 @@
-docker_user: pi
-docker_registry: localhost:5002
-
-fastapi_starter_src: /usr/app
