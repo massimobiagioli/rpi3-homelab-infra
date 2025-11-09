@@ -1,0 +1,68 @@
+---
+- name: Complete Grafana cleanup and removal
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Stop Grafana service
+      systemd:
+        name: grafana-server
+        state: stopped
+      ignore_errors: true
+
+    - name: Disable Grafana service
+      systemd:
+        name: grafana-server
+        enabled: false
+      ignore_errors: true
+
+    - name: Remove Grafana packages
+      apt:
+        name:
+          - grafana
+        state: absent
+        purge: true
+        autoremove: true
+
+    - name: Remove Grafana repository
+      apt_repository:
+        repo: "deb https://apt.grafana.com stable main"
+        state: absent
+
+    - name: Remove Grafana GPG key
+      apt_key:
+        url: https://apt.grafana.com/gpg.key
+        state: absent
+
+    - name: Remove Grafana directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/grafana
+        - /var/lib/grafana
+        - /var/log/grafana
+        - /usr/share/grafana
+
+    - name: Remove Grafana user and group
+      user:
+        name: grafana
+        state: absent
+        remove: true
+      ignore_errors: true
+
+    - name: Clean package cache
+      apt:
+        autoclean: true
+        autoremove: true
+
+    - name: Display cleanup results
+      debug:
+        msg: |
+          🧹 Grafana Cleanup Completed!
+          
+          📊 Status: SUCCESS
+          🗑️ Removed: Grafana server, configs, data, logs
+          
+          ✅ System is clean and ready for fresh installation

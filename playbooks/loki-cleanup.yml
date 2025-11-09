@@ -1,0 +1,70 @@
+---
+- name: Complete Loki cleanup and removal
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Stop Loki services
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+      loop:
+        - loki
+        - promtail
+      ignore_errors: true
+
+    - name: Disable Loki services
+      systemd:
+        name: "{{ item }}"
+        enabled: false
+      loop:
+        - loki
+        - promtail
+      ignore_errors: true
+
+    - name: Remove Loki binaries
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /usr/local/bin/loki
+        - /usr/local/bin/promtail
+
+    - name: Remove Loki systemd services
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/loki.service
+        - /etc/systemd/system/promtail.service
+
+    - name: Remove Loki directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/loki
+        - /var/lib/loki
+        - /var/log/loki
+
+    - name: Remove Loki user and group
+      user:
+        name: loki
+        state: absent
+        remove: true
+      ignore_errors: true
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: true
+
+    - name: Display cleanup results
+      debug:
+        msg: |
+          🧹 Loki Cleanup Completed!
+          
+          📋 Status: SUCCESS
+          🗑️ Removed: Loki, Promtail, configs, data, logs, services
+          
+          ✅ System is clean and ready for fresh installation

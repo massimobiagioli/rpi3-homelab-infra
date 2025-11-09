@@ -1,0 +1,74 @@
+# Promtail configuration for Raspberry Pi ARM v7
+# Ships system logs to Loki
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /var/lib/loki/positions.yaml
+
+clients:
+  - url: http://localhost:3100/loki/api/v1/push
+
+scrape_configs:
+  # System logs
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          host: {{ ansible_hostname }}
+          __path__: /var/log/*log
+
+  # Syslog  
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          host: {{ ansible_hostname }}
+          __path__: /var/log/syslog
+
+  # Auth logs
+  - job_name: auth
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: auth
+          host: {{ ansible_hostname }}
+          __path__: /var/log/auth.log
+
+  # Kernel logs
+  - job_name: kernel
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: kernel
+          host: {{ ansible_hostname }}
+          __path__: /var/log/kern.log
+
+  # Application logs (if they exist)
+  - job_name: apps
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: applications
+          host: {{ ansible_hostname }}
+          __path__: /var/log/*/*log
+
+  # Systemd journal
+  - job_name: journal
+    journal:
+      max_age: 12h
+      labels:
+        job: systemd-journal
+        host: {{ ansible_hostname }}
+    relabel_configs:
+      - source_labels: ['__journal__systemd_unit']
+        target_label: 'unit'

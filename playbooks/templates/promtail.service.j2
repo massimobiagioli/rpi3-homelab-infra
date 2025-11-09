@@ -1,0 +1,25 @@
+[Unit]
+Description=Promtail Log Shipper
+Documentation=https://grafana.com/docs/loki/
+Wants=network-online.target
+After=network-online.target loki.service
+
+[Service]
+Type=simple
+User=loki
+Group=loki
+ExecStart=/usr/local/bin/promtail -config.file=/etc/loki/promtail.yml
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=promtail
+KillMode=mixed
+KillSignal=SIGINT
+
+# Resource limits for Raspberry Pi
+MemoryMax=128M
+CPUQuota=25%
+
+[Install]
+WantedBy=multi-user.target

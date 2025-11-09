@@ -1,0 +1,129 @@
+---
+- name: Install and configure Grafana on Raspberry Pi ARM v7
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install required dependencies
+      apt:
+        name:
+          - software-properties-common
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Add Grafana GPG key
+      apt_key:
+        url: https://apt.grafana.com/gpg.key
+        state: present
+
+    - name: Add Grafana repository
+      apt_repository:
+        repo: "deb https://apt.grafana.com stable main"
+        state: present
+        update_cache: true
+
+    - name: Install Grafana
+      apt:
+        name: grafana
+        state: present
+
+    - name: Create Grafana configuration directory
+      file:
+        path: /etc/grafana/provisioning
+        state: directory
+        owner: grafana
+        group: grafana
+        mode: '0755'
+        recurse: true
+
+    - name: Configure Grafana for Raspberry Pi
+      template:
+        src: templates/grafana.ini.j2
+        dest: /etc/grafana/grafana.ini
+        owner: grafana
+        group: grafana
+        mode: '0640'
+        backup: true
+      notify: Restart grafana-server
+
+    - name: Create Grafana data directory
+      file:
+        path: /var/lib/grafana
+        state: directory
+        owner: grafana
+        group: grafana
+        mode: '0755'
+
+    - name: Create Grafana logs directory
+      file:
+        path: /var/log/grafana
+        state: directory
+        owner: grafana
+        group: grafana
+        mode: '0755'
+
+    - name: Start and enable Grafana service
+      systemd:
+        name: grafana-server
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Wait for Grafana to be ready
+      wait_for:
+        port: 3000
+        host: localhost
+        delay: 5
+        timeout: 30
+
+    - name: Test Grafana web interface
+      uri:
+        url: "http://localhost:3000/api/health"
+        method: GET
+        status_code: 200
+      register: grafana_health_test
+      ignore_errors: true
+
+    - name: Check Grafana service status
+      systemd:
+        name: grafana-server
+      register: grafana_service
+
+    - name: Display Grafana installation status
+      debug:
+        msg: |
+          📊 Grafana Installation Completed!
+          
+          ✅ Service Status: {{ grafana_service.status.ActiveState }}
+          🌐 Web Interface: http://{{ ansible_default_ipv4.address }}:3000
+          👤 Default Login: admin / admin (change on first login)
+          📁 Config: /etc/grafana/grafana.ini
+          📋 Logs: /var/log/grafana/
+          📊 Data: /var/lib/grafana/
+          
+          🧪 Health Check: {{ 'SUCCESS' if grafana_health_test.status == 200 else 'FAILED' }}
+          
+          🚀 Access Grafana:
+          1. Open browser: http://{{ ansible_default_ipv4.address }}:3000
+          2. Login: admin / admin
+          3. Set new password when prompted
+          
+          📈 Grafana is ready for monitoring and visualization!
+
+  handlers:
+    - name: Restart grafana-server
+      systemd:
+        name: grafana-server
+        state: restarted

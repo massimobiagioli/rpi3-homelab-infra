@@ -1,0 +1,25 @@
+[Unit]
+Description=Loki Log Aggregation System
+Documentation=https://grafana.com/docs/loki/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=loki
+Group=loki
+ExecStart=/usr/local/bin/loki -config.file=/etc/loki/loki.yml -validation.allow-structured-metadata=false
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=loki
+KillMode=mixed
+KillSignal=SIGINT
+
+# Resource limits for Raspberry Pi
+MemoryMax=256M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,175 @@
+# Grafana configuration for Raspberry Pi ARM v7
+# Optimized for limited resources
+
+[DEFAULT]
+# Instance name
+instance_name = homelab-grafana-rpi
+
+[server]
+# Protocol (http, https, h2, socket)
+protocol = http
+
+# The ip address to bind to, empty will bind to all interfaces
+http_addr = 0.0.0.0
+
+# The http port to use
+http_port = 3000
+
+# The public facing domain name used to access grafana from a browser
+domain = {{ ansible_default_ipv4.address }}
+
+# Redirect to correct domain if host header does not match domain
+enforce_domain = false
+
+# The full public facing url
+root_url = http://{{ ansible_default_ipv4.address }}:3000/
+
+# Serve Grafana from subpath specified in `root_url` setting
+serve_from_sub_path = false
+
+# Log requests
+router_logging = false
+
+# Enable gzip
+enable_gzip = true
+
+[database]
+# Database type (sqlite3, mysql, postgres)
+type = sqlite3
+
+# Database host (sqlite3 path)
+host = 127.0.0.1:3306
+
+# Database name
+name = grafana
+
+# Database user
+user = root
+
+# Database password
+password =
+
+# Database path (for sqlite3)
+path = /var/lib/grafana/grafana.db
+
+# Max idle connections
+max_idle_conn = 2
+
+# Max open connections
+max_open_conn = 5
+
+# Connection max lifetime (seconds)
+conn_max_lifetime = 14400
+
+[session]
+# Session provider (memory, file, redis, mysql, postgres)
+provider = file
+
+# Provider config
+provider_config = sessions
+
+# Session cookie name
+cookie_name = grafana_sess
+
+# Session secure cookie
+cookie_secure = false
+
+# Session life time (seconds)
+session_life_time = 86400
+
+[security]
+# Default admin user
+admin_user = admin
+
+# Default admin password (change on first login)
+admin_password = admin
+
+# Secret key for session
+secret_key = SW2YcwTIb9zpOOhoPsMm
+
+# Disable gravatar profile images
+disable_gravatar = true
+
+# Security headers
+cookie_secure = false
+cookie_samesite = lax
+
+[users]
+# Allow users to sign up
+allow_sign_up = true
+
+# Allow users to create organizations
+allow_org_create = true
+
+# Automatically assign new users to default organization
+auto_assign_org = true
+
+# Default role for new users
+auto_assign_org_role = Viewer
+
+[auth.anonymous]
+# Enable anonymous access
+enabled = false
+
+[logging]
+# Log mode (console, file, syslog)
+mode = file
+
+# Log level (trace, debug, info, warn, error, critical)
+level = info
+
+# Log format (text, json)
+format = text
+
+# Log file path
+[log.file]
+level = info
+format = text
+log_rotate = true
+max_lines = 1000000
+max_size_shift = 28
+daily_rotate = true
+max_days = 7
+
+[metrics]
+# Enable metrics
+enabled = true
+
+# Basic auth username for metrics endpoint
+basic_auth_username =
+
+# Basic auth password for metrics endpoint
+basic_auth_password =
+
+[alerting]
+# Enable alerting
+enabled = true
+
+# Execute alerts
+execute_alerts = true
+
+# Default setting for new alert rules
+default_rule_state = alerting
+
+# Alert evaluation timeout
+evaluation_timeout_seconds = 30
+
+# Maximum alert evaluation timeout
+max_evaluation_timeout_seconds = 120
+
+# Minimum alert evaluation interval
+min_interval_seconds = 10
+
+[unified_alerting]
+# Enable unified alerting
+enabled = true
+
+# Comma-separated list of organization IDs for which to disable unified alerting
+disabled_orgs =
+
+# Minimum interval for alert evaluation
+min_interval = 10s
+
+[explore]
+# Enable Explore
+enabled = true

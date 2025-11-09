@@ -1,0 +1,217 @@
+---
+- name: Install and configure Loki log aggregation on Raspberry Pi ARM v7
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install required dependencies
+      apt:
+        name:
+          - curl
+          - unzip
+          - systemd
+        state: present
+
+    - name: Create loki user
+      user:
+        name: loki
+        system: true
+        shell: /usr/sbin/nologin
+        home: /var/lib/loki
+        create_home: false
+
+    - name: Create Loki directories
+      file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: "/etc/loki", owner: "loki", group: "loki", mode: "0755" }
+        - { path: "/var/lib/loki", owner: "loki", group: "loki", mode: "0755" }
+        - { path: "/var/lib/loki/chunks", owner: "loki", group: "loki", mode: "0755" }
+        - { path: "/var/lib/loki/index", owner: "loki", group: "loki", mode: "0755" }
+        - { path: "/var/log/loki", owner: "loki", group: "loki", mode: "0755" }
+
+    - name: Download Loki binary for ARM
+      get_url:
+        url: "https://github.com/grafana/loki/releases/latest/download/loki-linux-arm64.zip"
+        dest: "/tmp/loki-arm64.zip"
+        mode: '0644'
+        timeout: 120
+
+    - name: Extract Loki binary
+      unarchive:
+        src: "/tmp/loki-arm64.zip"
+        dest: "/tmp/"
+        remote_src: true
+
+    - name: Copy Loki binary to system location
+      copy:
+        src: "/tmp/loki-linux-arm64"
+        dest: "/usr/local/bin/loki"
+        mode: '0755'
+        owner: root
+        group: root
+        remote_src: true
+
+    - name: Create Loki configuration
+      template:
+        src: templates/loki.yml.j2
+        dest: /etc/loki/loki.yml
+        owner: loki
+        group: loki
+        mode: '0644'
+
+    - name: Create Loki systemd service
+      template:
+        src: templates/loki.service.j2
+        dest: /etc/systemd/system/loki.service
+        owner: root
+        group: root
+        mode: '0644'
+      notify: 
+        - Reload systemd
+        - Restart loki
+
+    - name: Start and enable Loki service
+      systemd:
+        name: loki
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Wait for Loki to be ready
+      wait_for:
+        port: 3100
+        host: localhost
+        delay: 5
+        timeout: 30
+
+    - name: Test Loki API
+      uri:
+        url: "http://localhost:3100/ready"
+        method: GET
+        status_code: 200
+      register: loki_ready_test
+      ignore_errors: true
+
+    - name: Download Promtail for log shipping
+      get_url:
+        url: "https://github.com/grafana/loki/releases/latest/download/promtail-linux-arm64.zip"
+        dest: "/tmp/promtail-arm64.zip"
+        mode: '0644'
+        timeout: 120
+
+    - name: Extract Promtail binary
+      unarchive:
+        src: "/tmp/promtail-arm64.zip"
+        dest: "/tmp/"
+        remote_src: true
+
+    - name: Copy Promtail binary to system location
+      copy:
+        src: "/tmp/promtail-linux-arm64"
+        dest: "/usr/local/bin/promtail"
+        mode: '0755'
+        owner: root
+        group: root
+        remote_src: true
+
+    - name: Create Promtail configuration
+      template:
+        src: templates/promtail.yml.j2
+        dest: /etc/loki/promtail.yml
+        owner: loki
+        group: loki
+        mode: '0644'
+
+    - name: Create Promtail systemd service
+      template:
+        src: templates/promtail.service.j2
+        dest: /etc/systemd/system/promtail.service
+        owner: root
+        group: root
+        mode: '0644'
+      notify:
+        - Reload systemd
+        - Restart promtail
+
+    - name: Start and enable Promtail service
+      systemd:
+        name: promtail
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Cleanup temporary files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/tmp/loki-arm64.zip"
+        - "/tmp/loki-linux-arm64"
+        - "/tmp/promtail-arm64.zip"
+        - "/tmp/promtail-linux-arm64"
+
+    - name: Check Loki service status
+      systemd:
+        name: loki
+      register: loki_service
+
+    - name: Check Promtail service status
+      systemd:
+        name: promtail
+      register: promtail_service
+
+    - name: Display Loki installation status
+      debug:
+        msg: |
+          📋 Loki Log Aggregation Installation Completed!
+          
+          ✅ Loki Status: {{ loki_service.status.ActiveState }}
+          ✅ Promtail Status: {{ promtail_service.status.ActiveState }}
+          🌐 Loki API: http://{{ ansible_default_ipv4.address }}:3100
+          📁 Config: /etc/loki/loki.yml
+          📊 Data: /var/lib/loki/
+          📋 Logs: /var/log/loki/
+          
+          🧪 API Test: {{ 'SUCCESS' if loki_ready_test.status == 200 else 'FAILED' }}
+          
+          🔧 Loki Endpoints:
+          - Ready: http://{{ ansible_default_ipv4.address }}:3100/ready
+          - Metrics: http://{{ ansible_default_ipv4.address }}:3100/metrics
+          - Config: http://{{ ansible_default_ipv4.address }}:3100/config
+          
+          📤 Log Ingestion:
+          curl -v -H "Content-Type: application/json" \
+            -XPOST "http://{{ ansible_default_ipv4.address }}:3100/loki/api/v1/push" \
+            --data-raw '{"streams": [{ "stream": { "foo": "bar2" }, "values": [ [ "1570818238000000000", "fizzbuzz" ] ] }]}'
+          
+          💡 Loki is ready for log aggregation!
+          💡 Promtail is shipping system logs to Loki!
+          💡 Connect Grafana to Loki as data source: http://{{ ansible_default_ipv4.address }}:3100
+
+  handlers:
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true
+
+    - name: Restart loki
+      systemd:
+        name: loki
+        state: restarted
+
+    - name: Restart promtail
+      systemd:
+        name: promtail
+        state: restarted
