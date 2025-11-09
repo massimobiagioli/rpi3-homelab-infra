@@ -1,4 +1,4 @@
-.PHONY: help list-playbooks run-playbook test-ssh install-deps
+.PHONY: help list-playbooks run-playbook test-ssh install-deps setup-all
 
 ANSIBLE_PLAYBOOK = ansible-playbook
 ANSIBLE_INVENTORY = inventory.ini
@@ -34,3 +34,68 @@ test-ssh: # Test direct SSH connection to raspberry pi
 install-deps: # Install required Ansible collections
 	@echo "📦 Installing Ansible collections..."
 	ansible-galaxy collection install -r requirements.yml
+
+setup-all: # Install complete HomeLab stack (usage: make setup-all [CLEANUP=true])
+ifdef CLEANUP
+	@echo "🧹 CLEANUP MODE: Removing existing installations first..."
+	@echo "️  Cleaning up Loki..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/loki-cleanup.yml
+	@echo "🗑️  Cleaning up Grafana..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/grafana-cleanup.yml
+	@echo "🗑️  Cleaning up UV..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/uv-cleanup.yml
+	@echo "🗑️  Cleaning up Redis..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/redis-cleanup.yml
+	@echo "🗑️  Cleaning up Mosquitto..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/mosquitto-cleanup.yml
+	@echo "🗑️  Cleaning up MariaDB..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/mariadb-cleanup.yml
+	@echo "✅ Cleanup completed!"
+	@echo ""
+endif
+	@echo "🚀 Installing complete HomeLab infrastructure..."
+	@echo "📋 Installing: MariaDB, Mosquitto, Redis, UV, Grafana, Loki"
+ifdef CLEANUP
+	@echo "💡 Fresh installation mode (post-cleanup)"
+else
+	@echo "💡 Tip: Use 'make setup-all CLEANUP=true' for clean reinstall"
+endif
+	@echo ""
+	@echo "⏳ Installing MariaDB database..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/mariadb.yml
+	@echo "✅ MariaDB completed!"
+	@echo ""
+	@echo "⏳ Installing Mosquitto MQTT broker..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/mosquitto.yml
+	@echo "✅ Mosquitto completed!"
+	@echo ""
+	@echo "⏳ Installing Redis cache server..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/redis.yml
+	@echo "✅ Redis completed!"
+	@echo ""
+	@echo "⏳ Installing UV Python package manager..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/uv.yml
+	@echo "✅ UV completed!"
+	@echo ""
+	@echo "⏳ Installing Grafana monitoring dashboard..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/grafana.yml
+	@echo "✅ Grafana completed!"
+	@echo ""
+	@echo "⏳ Installing Loki log aggregation..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/loki.yml
+	@echo "✅ Loki completed!"
+	@echo ""
+	@echo "🎉 HomeLab Setup Completed Successfully!"
+	@echo ""
+	@echo "📊 SERVICES INSTALLED:"
+	@echo "  🗄️  MariaDB:   Database server"
+	@echo "  📡 Mosquitto: MQTT broker"  
+	@echo "  ⚡ Redis:     Cache server"
+	@echo "  🐍 UV:       Python package manager"
+	@echo "  📈 Grafana:  Monitoring (http://your_pi_ip:3000)"
+	@echo "  📝 Loki:     Log aggregation (port 3100)"
+	@echo ""
+	@echo "🔗 NEXT STEPS:"
+	@echo "1. Configure Loki data source in Grafana"
+	@echo "2. Test with: scp scripts/test_loki_grafana.py raspberrypi:~/"
+	@echo "3. Access Grafana: http://your_pi_ip:3000 (admin/admin)"

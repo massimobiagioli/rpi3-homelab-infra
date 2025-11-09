@@ -98,6 +98,8 @@ cp main.yml.example main.yml
 | `make run-playbook PLAYBOOK=name` | Execute specific playbook | 🚀 `PLAYBOOK=mariadb` |
 | `make run-playbook PLAYBOOK=name VERBOSE=true` | Execute playbook with verbose output | 🔍 Debug mode |
 | `make run-playbook-verbose PLAYBOOK=name` | Execute playbook with verbose output | 🔊 Always verbose |
+| `make setup-all` | **Install complete HomeLab stack** | 🏠 **All services at once** |
+| `make setup-all CLEANUP=true` | **Clean install (remove + reinstall)** | 🧹 **Fresh installation** |
 | `make help` | Show all commands | ❓ Full help menu |
 
 ### 📋 Example Playbooks
@@ -111,9 +113,57 @@ cp main.yml.example main.yml
 - **`redis-cleanup`** - Completely remove Redis installation
 - **`uv`** - Install UV Python package manager (ultra-fast)
 - **`uv-cleanup`** - Completely remove UV installation
+- **`grafana`** - Install and configure Grafana monitoring dashboard
+- **`grafana-cleanup`** - Completely remove Grafana installation
+- **`loki`** - Install and configure Loki log aggregation system + Promtail
+- **`loki-cleanup`** - Completely remove Loki and Promtail installation
 - **`reboot`** - Safely reboot the cluster  
 - **`backup`** - Backup important configurations
 - **`monitoring`** - Deploy monitoring tools
+
+### 🏠 Complete HomeLab Setup
+
+#### 🚀 **One-Command Installation**
+
+Install the entire HomeLab stack with a single command:
+
+```bash
+# Install all services (MariaDB, Mosquitto, Redis, UV, Grafana, Loki)
+make setup-all
+```
+
+#### 🧹 **Fresh Installation**
+
+For a completely clean installation (removes existing services first):
+
+```bash
+# Clean install: removes all existing installations and reinstalls fresh
+make setup-all CLEANUP=true
+```
+
+#### 📊 **What Gets Installed**
+
+The `setup-all` command installs these services in order:
+
+1. **🗄️ MariaDB** - Database server (port 3306)
+2. **📡 Mosquitto** - MQTT broker (port 1883) with authentication
+3. **⚡ Redis** - Cache server (port 6379) 
+4. **🐍 UV** - Ultra-fast Python package manager
+5. **📈 Grafana** - Monitoring dashboard (port 3000)
+6. **📝 Loki + Promtail** - Log aggregation system (port 3100)
+
+#### ⏱️ **Installation Time**
+
+- **Normal**: ~10-15 minutes (depending on Pi model and internet)
+- **With CLEANUP**: ~15-20 minutes (includes removal phase)
+
+#### 🎯 **When to Use CLEANUP=true**
+
+- ✅ First-time setup on a fresh Pi
+- ✅ Corrupted or partial installations 
+- ✅ Major configuration changes
+- ✅ Testing and development
+- ✅ "Factory reset" of your HomeLab
 
 ### 🔧 Usage Examples & Troubleshooting
 
@@ -173,6 +223,24 @@ make run-playbook PLAYBOOK=uv
 # Remove UV completely
 make run-playbook PLAYBOOK=uv-cleanup
 
+# Install Grafana monitoring dashboard (web UI on port 3000)
+make run-playbook PLAYBOOK=grafana
+
+# Remove Grafana completely
+make run-playbook PLAYBOOK=grafana-cleanup
+
+# Install Loki log aggregation + Promtail log shipper
+make run-playbook PLAYBOOK=loki
+
+# Remove Loki and Promtail completely
+make run-playbook PLAYBOOK=loki-cleanup
+
+# Install complete HomeLab stack (all services at once)
+make setup-all
+
+# Clean installation (removes existing installations first)
+make setup-all CLEANUP=true
+
 # Run custom playbooks (when you create them)
 make run-playbook PLAYBOOK=backup
 make run-playbook PLAYBOOK=monitoring
@@ -228,6 +296,116 @@ pip3 install ansible
 - **📊 Verbose**: Add `-v` (or `-vv`, `-vvv`) for detailed output
 - **🎯 Specific hosts**: Use `--limit hostname` to target specific machines
 - **� Vault**: Use `ansible-vault` for sensitive data encryption
+
+## 📊 Monitoring & Logging Stack
+
+### 🎨 Grafana Dashboard
+
+**Installation:**
+```bash
+make run-playbook PLAYBOOK=grafana
+```
+
+**Access:**
+- **URL**: `http://your_pi_ip:3000`
+- **Login**: `admin` / `admin` (change on first login)
+- **Features**: Dashboards, alerting, data visualization
+
+**Configuration:**
+- Config file: `/etc/grafana/grafana.ini`
+- Data directory: `/var/lib/grafana/`
+- Logs: `/var/log/grafana/`
+- Service: `sudo systemctl status grafana-server`
+
+### 📝 Loki Log Aggregation
+
+**Installation:**
+```bash
+make run-playbook PLAYBOOK=loki
+```
+
+**Services:**
+- **Loki API**: `http://your_pi_ip:3100` (log storage)
+- **Promtail**: Log shipper (syslog, auth.log)
+
+**Configuration:**
+- Loki config: `/etc/loki/loki.yml`
+- Promtail config: `/etc/loki/promtail.yml`
+- Data storage: `/var/lib/loki/`
+- Services: `sudo systemctl status loki promtail`
+
+### 🔗 Grafana + Loki Integration
+
+**1. Add Loki Data Source in Grafana:**
+1. Open Grafana: `http://your_pi_ip:3000`
+2. Go to **Configuration** → **Data Sources**
+3. Click **"Add data source"** → Select **"Loki"**
+4. Set URL: `http://localhost:3100`
+5. Click **"Save & test"** ✅
+
+**2. Query Logs in Grafana:**
+- Go to **Explore** → Select Loki datasource
+- Example queries:
+  ```
+  {job="syslog"}           # System logs
+  {job="python-test"}      # Test script logs  
+  {filename="/var/log/auth.log"}  # Authentication logs
+  ```
+
+### 🧪 Testing with Python Script
+
+**Copy and run test script:**
+```bash
+# Copy script to Raspberry Pi
+scp scripts/test_loki_grafana.py raspberrypi:~/
+
+# On Pi: make executable and run
+ssh raspberrypi
+chmod +x test_loki_grafana.py
+./test_loki_grafana.py --message "Hello from HomeLab!"
+```
+
+**Script options:**
+```bash
+./test_loki_grafana.py --loki-url http://localhost:3100 \
+                       --job "my-test" \
+                       --message "Custom log message" \
+                       --count 5 \
+                       --delay 1
+```
+
+**Verify in Grafana:**
+1. Go to **Explore** in Grafana
+2. Select Loki datasource
+3. Query: `{job="python-test"}`
+4. You should see your test logs! 🎉
+
+**Manual curl test:**
+```bash
+ssh raspberrypi "curl -X POST http://localhost:3100/loki/api/v1/push \
+  -H 'Content-Type: application/json' \
+  --data '{\"streams\": [{\"stream\": {\"job\": \"manual-test\"}, \"values\": [[\"$(date +%s%N)\", \"Manual test log\"]]}]}'"
+```
+
+### 🚨 Troubleshooting
+
+**Grafana not accessible:**
+```bash
+ssh raspberrypi "sudo systemctl status grafana-server"
+ssh raspberrypi "sudo journalctl -u grafana-server -n 20"
+```
+
+**Loki not responding:**
+```bash
+ssh raspberrypi "sudo systemctl status loki"
+ssh raspberrypi "curl http://localhost:3100/ready"
+```
+
+**Check logs:**
+```bash
+ssh raspberrypi "sudo journalctl -u loki -f"
+ssh raspberrypi "sudo journalctl -u promtail -f"
+```
 
 ---
 
