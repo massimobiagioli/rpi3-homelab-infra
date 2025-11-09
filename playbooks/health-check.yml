@@ -1,0 +1,296 @@
+---
+- name: HomeLab System Health Check
+  hosts: raspberry_pi
+  gather_facts: true
+  become: false
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    # === SYSTEM OVERVIEW ===
+    - name: Get system info
+      setup:
+      register: system_facts
+
+    - name: Get system uptime
+      shell: uptime -p
+      register: system_uptime
+      ignore_errors: true
+
+    - name: Get memory usage
+      shell: free -h | grep Mem | awk '{print $3"/"$2}'
+      register: memory_usage
+      ignore_errors: true
+
+    - name: Get disk usage
+      shell: df -h / | tail -1 | awk '{print $3"/"$2" ("$5")"}'
+      register: disk_usage
+      ignore_errors: true
+
+    # === SERVICE CHECKS ===
+    
+    # MariaDB Health Check
+    - name: Check MariaDB service status
+      systemd:
+        name: mariadb
+      register: mariadb_service
+      become: true
+      ignore_errors: true
+
+    - name: Test MariaDB connection
+      shell: mysql -u root -e "SELECT 1;" 2>/dev/null
+      register: mariadb_connection
+      ignore_errors: true
+
+    - name: Get MariaDB version
+      shell: mysql -V 2>/dev/null | grep -oP 'mariadb.*?[0-9]+\.[0-9]+\.[0-9]+' || echo "Not available"
+      register: mariadb_version
+      ignore_errors: true
+
+    # Mosquitto Health Check
+    - name: Check Mosquitto service status
+      systemd:
+        name: mosquitto
+      register: mosquitto_service
+      become: true
+      ignore_errors: true
+
+    - name: Test Mosquitto port
+      wait_for:
+        port: 1883
+        host: localhost
+        timeout: 3
+      register: mosquitto_port
+      ignore_errors: true
+
+    - name: Get Mosquitto version
+      shell: mosquitto -h 2>&1 | head -1 | grep -oP 'version [0-9]+\.[0-9]+\.[0-9]+' || echo "version unknown"
+      register: mosquitto_version
+      ignore_errors: true
+
+    # Redis Health Check
+    - name: Check Redis service status
+      systemd:
+        name: redis-server
+      register: redis_service
+      become: true
+      ignore_errors: true
+
+    - name: Test Redis connection
+      shell: 'redis-cli -a "{{ vault_redis_password }}" ping 2>/dev/null'
+      register: redis_connection
+      ignore_errors: true
+
+    - name: Get Redis info
+      shell: 'redis-cli info server 2>/dev/null | grep redis_version | cut -d: -f2 | tr -d "\r" || echo "unknown"'
+      register: redis_version
+      ignore_errors: true
+
+    # UV Health Check
+    - name: Check if UV is installed
+      shell: which uv
+      register: uv_installed
+      ignore_errors: true
+
+    - name: Get UV version
+      shell: uv --version 2>/dev/null || echo "uv unknown"
+      register: uv_version
+      ignore_errors: true
+
+    - name: Test UV functionality
+      shell: uv pip --help >/dev/null 2>&1
+      register: uv_functional
+      ignore_errors: true
+
+    # Grafana Health Check
+    - name: Check Grafana service status
+      systemd:
+        name: grafana-server
+      register: grafana_service
+      become: true
+      ignore_errors: true
+
+    - name: Test Grafana web interface
+      uri:
+        url: http://localhost:3000/api/health
+        method: GET
+        timeout: 15
+      register: grafana_web
+      ignore_errors: true
+
+    # Grafana version endpoint requires authentication, skipping
+
+    # Loki Health Check
+    - name: Check Loki service status
+      systemd:
+        name: loki
+      register: loki_service
+      become: true
+      ignore_errors: true
+
+    - name: Test Loki API
+      uri:
+        url: http://localhost:3100/ready
+        method: GET
+        timeout: 5
+      register: loki_api
+      ignore_errors: true
+
+    - name: Check Promtail service status
+      systemd:
+        name: promtail
+      register: promtail_service
+      become: true
+      ignore_errors: true
+
+    - name: Test Promtail metrics
+      uri:
+        url: http://localhost:9080/metrics
+        method: GET
+        timeout: 5
+      register: promtail_metrics
+      ignore_errors: true
+
+    # === HEALTH REPORT ===
+    - name: Create reports directory
+      file:
+        path: "{{ playbook_dir }}/../reports"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      run_once: true
+
+    - name: Generate timestamp for report filename
+      set_fact:
+        report_timestamp: "{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}_{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}{{ ansible_date_time.second }}"
+
+    - name: Generate Health Check Report Content
+      set_fact:
+        health_report: |
+          
+          ╔══════════════════════════════════════════════════════════════════╗
+          ║                    🏠 HOMELAB HEALTH CHECK REPORT                ║
+          ║                    {{ ansible_date_time.date }} {{ ansible_date_time.time }}                        ║
+          ╚══════════════════════════════════════════════════════════════════╝
+          
+          📊 SYSTEM OVERVIEW:
+          ────────────────────────────────────────────────────────────────────
+          🖥️  Host: {{ ansible_hostname }} ({{ ansible_default_ipv4.address }})
+          ⏱️  Uptime: {{ system_uptime.stdout | default('Unknown') }}
+          🧠 Memory: {{ memory_usage.stdout | default('Unknown') }}
+          💾 Disk: {{ disk_usage.stdout | default('Unknown') }}
+          🐧 OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          🔥 CPU: {{ ansible_processor[2] | default('Unknown') }}
+          
+          ✅ SERVICE STATUS CHECKLIST:
+          ────────────────────────────────────────────────────────────────────
+          {% set mariadb_ok = mariadb_service.status.ActiveState|default('unknown') == 'active' and mariadb_connection.rc|default(1) == 0 %}
+          {% set mosquitto_ok = mosquitto_service.status.ActiveState|default('unknown') == 'active' and mosquitto_port.failed|default(true) == false %}
+          {% set redis_ok = redis_service.status.ActiveState|default('unknown') == 'active' and redis_connection.stdout|default('') == 'PONG' %}
+          {% set uv_ok = uv_installed.rc|default(1) == 0 and uv_functional.rc|default(1) == 0 %}
+          {% set grafana_ok = grafana_service.status.ActiveState|default('unknown') == 'active' and grafana_web.status|default(0) == 200 %}
+          {% set loki_ok = loki_service.status.ActiveState|default('unknown') == 'active' and loki_api.status|default(0) == 200 %}
+          {% set promtail_ok = promtail_service.status.ActiveState|default('unknown') == 'active' and promtail_metrics.status|default(0) == 200 %}
+          
+          {{ '✅' if mariadb_ok else '❌' }} MariaDB Database
+             └─ Service: {{ mariadb_service.status.ActiveState|default('unknown') }}
+             └─ Connection: {{ 'OK' if mariadb_connection.rc|default(1) == 0 else 'FAILED' }}
+             └─ Version: {{ mariadb_version.stdout|default('Unknown') }}
+             └─ Port: 3306
+          
+          {{ '✅' if mosquitto_ok else '❌' }} Mosquitto MQTT Broker  
+             └─ Service: {{ mosquitto_service.status.ActiveState|default('unknown') }}
+             └─ Port 1883: {{ 'OPEN' if mosquitto_port.failed|default(true) == false else 'CLOSED' }}
+             └─ Version: {{ mosquitto_version.stdout|default('Unknown') }}
+          
+          {{ '✅' if redis_ok else '❌' }} Redis Cache Server
+             └─ Service: {{ redis_service.status.ActiveState|default('unknown') }}
+             └─ Connection: {{ 'PONG' if redis_connection.stdout|default('') == 'PONG' else 'FAILED' }}
+             └─ Version: {{ redis_version.stdout|default('Unknown') }}
+             └─ Port: 6379
+          
+          {{ '✅' if uv_ok else '❌' }} UV Python Package Manager
+             └─ Installation: {{ 'OK' if uv_installed.rc|default(1) == 0 else 'NOT FOUND' }}
+             └─ Functionality: {{ 'OK' if uv_functional.rc|default(1) == 0 else 'ERROR' }}
+             └─ Version: {{ uv_version.stdout|default('Unknown') }}
+          
+          {{ '✅' if grafana_ok else '❌' }} Grafana Monitoring Dashboard
+             └─ Service: {{ grafana_service.status.ActiveState | default('unknown') }}
+             └─ Web UI: {{ 'OK' if grafana_web.status | default(0) == 200 else 'FAILED' }}
+             └─ Version: Available via web UI
+             └─ URL: http://{{ ansible_default_ipv4.address }}:3000
+          
+          {{ '✅' if loki_ok else '❌' }} Loki Log Aggregation
+             └─ Service: {{ loki_service.status.ActiveState|default('unknown') }}
+             └─ API: {{ 'OK' if loki_api.status|default(0) == 200 else 'FAILED' }}
+             └─ URL: http://{{ ansible_default_ipv4.address }}:3100
+          
+          {{ '✅' if promtail_ok else '❌' }} Promtail Log Shipper
+             └─ Service: {{ promtail_service.status.ActiveState|default('unknown') }}
+             └─ Metrics: {{ 'OK' if promtail_metrics.status|default(0) == 200 else 'FAILED' }}
+             └─ Port: 9080
+          
+          📊 SUMMARY:
+          ────────────────────────────────────────────────────────────────────
+          🗄️  Database Services:     {{ '✅' if mariadb_ok else '❌' }} MariaDB
+          📡 Messaging Services:    {{ '✅' if mosquitto_ok else '❌' }} Mosquitto
+          ⚡ Cache Services:        {{ '✅' if redis_ok else '❌' }} Redis  
+          🐍 Development Tools:     {{ '✅' if uv_ok else '❌' }} UV
+          📊 Monitoring Stack:      {{ '✅' if grafana_ok else '❌' }} Grafana {{ '✅' if loki_ok and promtail_ok else '❌' }} Loki/Promtail
+          
+          {% set total_services = 7 %}
+          {% set healthy_services = [mariadb_ok, mosquitto_ok, redis_ok, uv_ok, grafana_ok, loki_ok, promtail_ok] | select('equalto', true) | list | length %}
+          🎯 Overall Health: {{ healthy_services }}/{{ total_services }} services healthy ({{ ((healthy_services/total_services)*100)|round(1) }}%)
+          
+          {% if healthy_services == total_services %}
+          🎉 ALL SYSTEMS OPERATIONAL! Your HomeLab is running perfectly! 🚀
+          {% elif healthy_services >= 5 %}
+          ⚠️  Most systems operational. Check failed services above.
+          {% else %}
+          🚨 MULTIPLE SERVICES DOWN! Immediate attention required!
+          {% endif %}
+          
+          ────────────────────────────────────────────────────────────────────
+          💡 Run individual service playbooks to fix issues:
+             make run-playbook PLAYBOOK=<service-name>
+          🔧 For complete reinstall: make setup-all CLEANUP=true
+
+    - name: Save Health Check Report to File
+      copy:
+        content: "{{ health_report }}"
+        dest: "{{ playbook_dir }}/../reports/health-check_{{ report_timestamp }}.txt"
+        mode: '0644'
+      delegate_to: localhost
+      run_once: true
+
+    - name: Display Health Check Summary
+      debug:
+        msg: |
+          🏥 HEALTH CHECK COMPLETED
+          
+          📊 Quick Summary:
+          {% set total_services = 7 %}
+          {% set mariadb_ok = mariadb_service.status.ActiveState|default('unknown') == 'active' and mariadb_connection.rc|default(1) == 0 %}
+          {% set mosquitto_ok = mosquitto_service.status.ActiveState|default('unknown') == 'active' and mosquitto_port.failed|default(true) == false %}
+          {% set redis_ok = redis_service.status.ActiveState|default('unknown') == 'active' and redis_connection.stdout|default('') == 'PONG' %}
+          {% set uv_ok = uv_installed.rc|default(1) == 0 and uv_functional.rc|default(1) == 0 %}
+          {% set grafana_ok = grafana_service.status.ActiveState|default('unknown') == 'active' and grafana_web.status|default(0) == 200 %}
+          {% set loki_ok = loki_service.status.ActiveState|default('unknown') == 'active' and loki_api.status|default(0) == 200 %}
+          {% set promtail_ok = promtail_service.status.ActiveState|default('unknown') == 'active' and promtail_metrics.status|default(0) == 200 %}
+          {% set healthy_services = [mariadb_ok, mosquitto_ok, redis_ok, uv_ok, grafana_ok, loki_ok, promtail_ok] | select('equalto', true) | list | length %}
+          
+          🎯 Overall Health: {{ healthy_services }}/{{ total_services }} services ({{ ((healthy_services/total_services)*100)|round(1) }}%)
+          
+          📋 Services Status:
+          {{ '✅' if mariadb_ok else '❌' }} MariaDB  {{ '✅' if mosquitto_ok else '❌' }} Mosquitto  {{ '✅' if redis_ok else '❌' }} Redis  {{ '✅' if uv_ok else '❌' }} UV
+          {{ '✅' if grafana_ok else '❌' }} Grafana  {{ '✅' if loki_ok else '❌' }} Loki  {{ '✅' if promtail_ok else '❌' }} Promtail
+          
+          📄 Detailed report saved: reports/health-check_{{ report_timestamp }}.txt
+          
+          {% if healthy_services == total_services %}
+          🎉 ALL SYSTEMS OPERATIONAL!
+          {% elif healthy_services >= 5 %}
+          ⚠️  Most systems operational. Check report for details.
+          {% else %}
+          🚨 MULTIPLE SERVICES DOWN! Check report immediately!
+          {% endif %}

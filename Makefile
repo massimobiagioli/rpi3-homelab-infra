@@ -1,4 +1,4 @@
-.PHONY: help list-playbooks run-playbook test-ssh install-deps setup-all
+.PHONY: help list-playbooks run-playbook test-ssh install-deps setup-all health-check
 
 ANSIBLE_PLAYBOOK = ansible-playbook
 ANSIBLE_INVENTORY = inventory.ini
@@ -34,6 +34,10 @@ test-ssh: # Test direct SSH connection to raspberry pi
 install-deps: # Install required Ansible collections
 	@echo "📦 Installing Ansible collections..."
 	ansible-galaxy collection install -r requirements.yml
+
+health-check: # Run comprehensive health check of all HomeLab services
+	@echo "🏥 Running HomeLab health check..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/health-check.yml
 
 setup-all: # Install complete HomeLab stack (usage: make setup-all [CLEANUP=true])
 ifdef CLEANUP

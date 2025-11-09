@@ -4,8 +4,15 @@ inventory.ini
 # Playbook variables with sensitive data
 playbooks/vars/main.yml
 
+# Health check reports
+reports/
+
 # IDE
 .vscode/
 
 # macOS
 .DS_Store
+
+# Temporary files
+*.tmp
+*.log
