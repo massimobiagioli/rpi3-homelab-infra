@@ -82,19 +82,14 @@
         daemon_reload: true
 
     - name: Wait for Grafana to be ready
-      wait_for:
-        port: 3000
-        host: localhost
-        delay: 5
-        timeout: 30
-
-    - name: Test Grafana web interface
       uri:
-        url: "http://localhost:3000/api/health"
+        url: "http://localhost:3000/login"
         method: GET
-        status_code: 200
+        status_code: [200, 302]
       register: grafana_health_test
-      ignore_errors: true
+      until: grafana_health_test.status in [200, 302]
+      retries: 12
+      delay: 5
 
     - name: Check Grafana service status
       systemd:
@@ -113,7 +108,7 @@
           📋 Logs: /var/log/grafana/
           📊 Data: /var/lib/grafana/
           
-          🧪 Health Check: {{ 'SUCCESS' if grafana_health_test.status == 200 else 'FAILED' }}
+          🧪 Health Check: {{ 'SUCCESS' if grafana_health_test.status in [200, 302] else 'FAILED' }}
           
           🚀 Access Grafana:
           1. Open browser: http://{{ ansible_default_ipv4.address }}:3000

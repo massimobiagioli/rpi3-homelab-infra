@@ -141,27 +141,8 @@ basic_auth_username =
 # Basic auth password for metrics endpoint
 basic_auth_password =
 
-[alerting]
-# Enable alerting
-enabled = true
-
-# Execute alerts
-execute_alerts = true
-
-# Default setting for new alert rules
-default_rule_state = alerting
-
-# Alert evaluation timeout
-evaluation_timeout_seconds = 30
-
-# Maximum alert evaluation timeout
-max_evaluation_timeout_seconds = 120
-
-# Minimum alert evaluation interval
-min_interval_seconds = 10
-
 [unified_alerting]
-# Enable unified alerting
+# Enable unified alerting (only supported alerting in Grafana 12+)
 enabled = true
 
 # Comma-separated list of organization IDs for which to disable unified alerting
@@ -169,6 +150,12 @@ disabled_orgs =
 
 # Minimum interval for alert evaluation
 min_interval = 10s
+
+# Maximum number of rule evaluation workers
+max_attempts = 3
+
+# Base interval for alert evaluation
+base_interval = 10s
 
 [explore]
 # Enable Explore
