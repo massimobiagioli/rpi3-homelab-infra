@@ -10,7 +10,7 @@ help: # Show help for each of the Makefile recipes.
 
 list-playbooks: # List all available playbooks
 	@echo "📚 Available Playbooks:"
-	@find playbooks -name "*.yml" -type f -not -path "playbooks/vars/*" | sed 's|playbooks/||' | sed 's|\.yml$$||' | sort | while read playbook; do echo "  📋 $$playbook"; done
+	@find playbooks -name "*.yml" -type f -not -path "playbooks/vars/*" -not -path "playbooks/config/*" | sed 's|playbooks/||' | sed 's|\.yml$$||' | sort | while read playbook; do echo "  📋 $$playbook"; done
 
 run-playbook: # Run a playbook (usage: make run-playbook PLAYBOOK=update [VERBOSE=true])
 ifndef PLAYBOOK
