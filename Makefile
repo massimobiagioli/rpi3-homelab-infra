@@ -64,6 +64,8 @@ ifdef CLEANUP
 	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/grafana-cleanup.yml
 	@echo "🗑️  Cleaning up UV..."
 	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/uv-cleanup.yml
+	@echo "🗑️  Cleaning up Git..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/git-cleanup.yml
 	@echo "🗑️  Cleaning up Redis..."
 	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/redis-cleanup.yml
 	@echo "🗑️  Cleaning up Mosquitto..."
@@ -74,7 +76,7 @@ ifdef CLEANUP
 	@echo ""
 endif
 	@echo "🚀 Installing complete HomeLab infrastructure..."
-	@echo "📋 Installing: MariaDB, Mosquitto, Redis, UV, Grafana, Loki"
+	@echo "📋 Installing: MariaDB, Mosquitto, Redis, UV, Git, Grafana, Loki"
 ifdef CLEANUP
 	@echo "💡 Fresh installation mode (post-cleanup)"
 else
@@ -97,6 +99,10 @@ endif
 	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/uv.yml
 	@echo "✅ UV completed!"
 	@echo ""
+	@echo "⏳ Installing Git version control..."
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/git.yml
+	@echo "✅ Git completed!"
+	@echo ""
 	@echo "⏳ Installing Grafana monitoring dashboard..."
 	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/grafana.yml
 	@echo "✅ Grafana completed!"
@@ -112,6 +118,7 @@ endif
 	@echo "  📡 Mosquitto: MQTT broker"  
 	@echo "  ⚡ Redis:     Cache server"
 	@echo "  🐍 UV:       Python package manager"
+	@echo "  📝 Git:      Version control system"
 	@echo "  📈 Grafana:  Monitoring (http://your_pi_ip:3000)"
 	@echo "  📝 Loki:     Log aggregation (port 3100)"
 	@echo ""

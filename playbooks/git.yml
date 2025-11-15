@@ -1,0 +1,99 @@
+---
+- name: Install and configure Git
+  hosts: raspberrypi
+  become: true
+  vars:
+    git_user_name: "HomeLab User"
+    git_user_email: "homelab@example.com"
+
+  tasks:
+    - name: Update package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 600
+
+    - name: Install Git
+      apt:
+        name: git
+        state: present
+
+    - name: Check if Git is installed
+      command: git --version
+      register: git_version
+      changed_when: false
+
+    - name: Display Git version
+      debug:
+        msg: "Git installed successfully: {{ git_version.stdout }}"
+
+    - name: Set global Git user name
+      git_config:
+        name: user.name
+        scope: global
+        value: "{{ git_user_name }}"
+      become_user: "{{ ansible_user }}"
+      become: false
+
+    - name: Set global Git user email
+      git_config:
+        name: user.email
+        scope: global
+        value: "{{ git_user_email }}"
+      become_user: "{{ ansible_user }}"
+      become: false
+
+    - name: Set Git default branch to main
+      git_config:
+        name: init.defaultBranch
+        scope: global
+        value: main
+      become_user: "{{ ansible_user }}"
+      become: false
+
+    - name: Set Git pull strategy to rebase
+      git_config:
+        name: pull.rebase
+        scope: global
+        value: "false"
+      become_user: "{{ ansible_user }}"
+      become: false
+
+    - name: Show Git configuration
+      command: git config --global --list
+      register: git_config_output
+      become_user: "{{ ansible_user }}"
+      become: false
+      changed_when: false
+
+    - name: Display Git configuration
+      debug:
+        msg: "{{ git_config_output.stdout_lines }}"
+
+    - name: Verify Git installation
+      shell: |
+        echo "Git version: $(git --version)"
+        echo "Git config user.name: $(git config --global user.name)"
+        echo "Git config user.email: $(git config --global user.email)"
+      register: git_info
+      become_user: "{{ ansible_user }}"
+      become: false
+      changed_when: false
+
+    - name: Display Git installation summary
+      debug:
+        msg: |
+          ✅ Git Installation Completed Successfully!
+          
+          📊 INSTALLATION DETAILS:
+          {{ git_info.stdout }}
+          
+          🔧 CONFIGURED SETTINGS:
+          - Default branch: main
+          - Pull strategy: merge (rebase disabled)
+          
+          💡 USAGE:
+          - Clone repository: git clone <repository_url>
+          - Check status: git status
+          - Add files: git add <file>
+          - Commit: git commit -m "message"
+          - Push: git push origin main

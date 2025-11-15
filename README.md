@@ -130,7 +130,7 @@ cp main.yml.example main.yml
 Install the entire HomeLab stack with a single command:
 
 ```bash
-# Install all services (MariaDB, Mosquitto, Redis, UV, Grafana, Loki)
+# Install all services (MariaDB, Mosquitto, Redis, UV, Git, Grafana, Loki)
 make setup-all
 ```
 
@@ -151,8 +151,9 @@ The `setup-all` command installs these services in order:
 2. **📡 Mosquitto** - MQTT broker (port 1883) with authentication
 3. **⚡ Redis** - Cache server (port 6379) 
 4. **🐍 UV** - Ultra-fast Python package manager
-5. **📈 Grafana** - Monitoring dashboard (port 3000)
-6. **📝 Loki + Promtail** - Log aggregation system (port 3100)
+5. **� Git** - Version control system with global configuration
+6. **�📈 Grafana** - Monitoring dashboard (port 3000)
+7. **📝 Loki + Promtail** - Log aggregation system (port 3100)
 
 #### ⏱️ **Installation Time**
 
@@ -224,6 +225,12 @@ make run-playbook PLAYBOOK=uv
 
 # Remove UV completely
 make run-playbook PLAYBOOK=uv-cleanup
+
+# Install Git version control system
+make run-playbook PLAYBOOK=git
+
+# Remove Git completely
+make run-playbook PLAYBOOK=git-cleanup
 
 # Install Grafana monitoring dashboard (web UI on port 3000)
 make run-playbook PLAYBOOK=grafana

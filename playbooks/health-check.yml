@@ -102,6 +102,29 @@
       register: uv_functional
       ignore_errors: true
 
+    # Git Health Check
+    - name: Check if Git is installed
+      shell: which git
+      register: git_installed
+      ignore_errors: true
+
+    - name: Get Git version
+      shell: git --version 2>/dev/null || echo "git unknown"
+      register: git_version
+      ignore_errors: true
+
+    - name: Test Git functionality
+      shell: git --help >/dev/null 2>&1
+      register: git_functional
+      ignore_errors: true
+
+    - name: Get Git user configuration
+      shell: |
+        echo "User: $(git config --global user.name 2>/dev/null || echo 'not configured')"
+        echo "Email: $(git config --global user.email 2>/dev/null || echo 'not configured')"
+      register: git_config
+      ignore_errors: true
+
     # Grafana Health Check
     - name: Check Grafana service status
       systemd:
@@ -188,6 +211,7 @@
           {% set mosquitto_ok = mosquitto_service.status.ActiveState|default('unknown') == 'active' and mosquitto_port.failed|default(true) == false %}
           {% set redis_ok = redis_service.status.ActiveState|default('unknown') == 'active' and redis_connection.stdout|default('') == 'PONG' %}
           {% set uv_ok = uv_installed.rc|default(1) == 0 and uv_functional.rc|default(1) == 0 %}
+          {% set git_ok = git_installed.rc|default(1) == 0 and git_functional.rc|default(1) == 0 %}
           {% set grafana_ok = grafana_service.status.ActiveState|default('unknown') == 'active' and grafana_web.status|default(0) == 200 %}
           {% set loki_ok = loki_service.status.ActiveState|default('unknown') == 'active' and loki_api.status|default(0) == 200 %}
           {% set promtail_ok = promtail_service.status.ActiveState|default('unknown') == 'active' and promtail_metrics.status|default(0) == 200 %}
@@ -214,6 +238,12 @@
              └─ Functionality: {{ 'OK' if uv_functional.rc|default(1) == 0 else 'ERROR' }}
              └─ Version: {{ uv_version.stdout|default('Unknown') }}
           
+          {{ '✅' if git_ok else '❌' }} Git Version Control System
+             └─ Installation: {{ 'OK' if git_installed.rc|default(1) == 0 else 'NOT FOUND' }}
+             └─ Functionality: {{ 'OK' if git_functional.rc|default(1) == 0 else 'ERROR' }}
+             └─ Version: {{ git_version.stdout|default('Unknown') }}
+             └─ Configuration: {{ git_config.stdout_lines[0]|default('User: not configured') }}
+          
           {{ '✅' if grafana_ok else '❌' }} Grafana Monitoring Dashboard
              └─ Service: {{ grafana_service.status.ActiveState | default('unknown') }}
              └─ Web UI: {{ 'OK' if grafana_web.status | default(0) == 200 else 'FAILED' }}
@@ -235,11 +265,11 @@
           🗄️  Database Services:     {{ '✅' if mariadb_ok else '❌' }} MariaDB
           📡 Messaging Services:    {{ '✅' if mosquitto_ok else '❌' }} Mosquitto
           ⚡ Cache Services:        {{ '✅' if redis_ok else '❌' }} Redis  
-          🐍 Development Tools:     {{ '✅' if uv_ok else '❌' }} UV
+          🐍 Development Tools:     {{ '✅' if uv_ok else '❌' }} UV {{ '✅' if git_ok else '❌' }} Git
           📊 Monitoring Stack:      {{ '✅' if grafana_ok else '❌' }} Grafana {{ '✅' if loki_ok and promtail_ok else '❌' }} Loki/Promtail
           
-          {% set total_services = 7 %}
-          {% set healthy_services = [mariadb_ok, mosquitto_ok, redis_ok, uv_ok, grafana_ok, loki_ok, promtail_ok] | select('equalto', true) | list | length %}
+          {% set total_services = 8 %}
+          {% set healthy_services = [mariadb_ok, mosquitto_ok, redis_ok, uv_ok, git_ok, grafana_ok, loki_ok, promtail_ok] | select('equalto', true) | list | length %}
           🎯 Overall Health: {{ healthy_services }}/{{ total_services }} services healthy ({{ ((healthy_services/total_services)*100)|round(1) }}%)
           
           {% if healthy_services == total_services %}
@@ -269,20 +299,21 @@
           🏥 HEALTH CHECK COMPLETED
           
           📊 Quick Summary:
-          {% set total_services = 7 %}
+          {% set total_services = 8 %}
           {% set mariadb_ok = mariadb_service.status.ActiveState|default('unknown') == 'active' and mariadb_connection.rc|default(1) == 0 %}
           {% set mosquitto_ok = mosquitto_service.status.ActiveState|default('unknown') == 'active' and mosquitto_port.failed|default(true) == false %}
           {% set redis_ok = redis_service.status.ActiveState|default('unknown') == 'active' and redis_connection.stdout|default('') == 'PONG' %}
           {% set uv_ok = uv_installed.rc|default(1) == 0 and uv_functional.rc|default(1) == 0 %}
+          {% set git_ok = git_installed.rc|default(1) == 0 and git_functional.rc|default(1) == 0 %}
           {% set grafana_ok = grafana_service.status.ActiveState|default('unknown') == 'active' and grafana_web.status|default(0) == 200 %}
           {% set loki_ok = loki_service.status.ActiveState|default('unknown') == 'active' and loki_api.status|default(0) == 200 %}
           {% set promtail_ok = promtail_service.status.ActiveState|default('unknown') == 'active' and promtail_metrics.status|default(0) == 200 %}
-          {% set healthy_services = [mariadb_ok, mosquitto_ok, redis_ok, uv_ok, grafana_ok, loki_ok, promtail_ok] | select('equalto', true) | list | length %}
+          {% set healthy_services = [mariadb_ok, mosquitto_ok, redis_ok, uv_ok, git_ok, grafana_ok, loki_ok, promtail_ok] | select('equalto', true) | list | length %}
           
           🎯 Overall Health: {{ healthy_services }}/{{ total_services }} services ({{ ((healthy_services/total_services)*100)|round(1) }}%)
           
           📋 Services Status:
-          {{ '✅' if mariadb_ok else '❌' }} MariaDB  {{ '✅' if mosquitto_ok else '❌' }} Mosquitto  {{ '✅' if redis_ok else '❌' }} Redis  {{ '✅' if uv_ok else '❌' }} UV
+          {{ '✅' if mariadb_ok else '❌' }} MariaDB  {{ '✅' if mosquitto_ok else '❌' }} Mosquitto  {{ '✅' if redis_ok else '❌' }} Redis  {{ '✅' if uv_ok else '❌' }} UV  {{ '✅' if git_ok else '❌' }} Git
           {{ '✅' if grafana_ok else '❌' }} Grafana  {{ '✅' if loki_ok else '❌' }} Loki  {{ '✅' if promtail_ok else '❌' }} Promtail
           
           📄 Detailed report saved: reports/health-check_{{ report_timestamp }}.txt

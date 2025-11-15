@@ -1,0 +1,81 @@
+---
+- name: Cleanup Git installation
+  hosts: raspberrypi
+  become: true
+
+  tasks:
+    - name: Check if Git is installed
+      command: git --version
+      register: git_check
+      failed_when: false
+      changed_when: false
+
+    - name: Display current Git status
+      debug:
+        msg: |
+          {% if git_check.rc == 0 %}
+          🔍 Git is currently installed: {{ git_check.stdout }}
+          {% else %}
+          ℹ️ Git is not currently installed
+          {% endif %}
+
+    - name: Stop any Git processes (if any)
+      shell: |
+        pkill -f git || true
+      changed_when: false
+      ignore_errors: true
+
+    - name: Remove Git package
+      apt:
+        name: git
+        state: absent
+        purge: true
+      when: git_check.rc == 0
+
+    - name: Remove Git configuration files (user home)
+      file:
+        path: "/home/{{ ansible_user }}/.gitconfig"
+        state: absent
+      become_user: "{{ ansible_user }}"
+      become: false
+
+    - name: Remove Git configuration files (root home)
+      file:
+        path: "/root/.gitconfig"
+        state: absent
+
+    - name: Remove any leftover Git directories in /tmp
+      shell: |
+        find /tmp -name ".git*" -type d -exec rm -rf {} + 2>/dev/null || true
+        find /tmp -name "git*" -type f -exec rm -f {} + 2>/dev/null || true
+      changed_when: false
+      ignore_errors: true
+
+    - name: Clean package cache
+      apt:
+        autoclean: true
+        autoremove: true
+
+    - name: Verify Git removal
+      command: git --version
+      register: git_verify
+      failed_when: false
+      changed_when: false
+
+    - name: Display cleanup results
+      debug:
+        msg: |
+          {% if git_verify.rc != 0 %}
+          ✅ Git Cleanup Completed Successfully!
+          
+          🗑️ REMOVED COMPONENTS:
+          - Git package and dependencies
+          - User Git configuration files
+          - Temporary Git files
+          - Package cache cleaned
+          
+          ✅ Git is no longer installed on the system
+          {% else %}
+          ⚠️ Warning: Git may still be installed or accessible
+          Current version: {{ git_verify.stdout }}
+          {% endif %}
