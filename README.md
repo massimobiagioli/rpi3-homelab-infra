@@ -102,6 +102,9 @@ cp main.yml.example main.yml
 | `make setup-all CLEANUP=true` | **Clean install (remove + reinstall)** | 🧹 **Fresh installation** |
 | `make deploy APP=name` | **Deploy FastAPI application** | 🚀 **Deploy your apps** |
 | `make health-check` | Run comprehensive system health check | 🏥 **Check all services** |
+| `make log SERVICE=name` | View logs of a service | 📋 `SERVICE=redis-server` |
+| `make log SERVICE=name LINES=100` | View specific number of log lines | 📋 Last 100 lines |
+| `make log SERVICE=name FOLLOW=true` | Follow logs in real-time | 📋 Live log monitoring |
 | `make help` | Show all commands | ❓ Full help menu |
 
 ### 📋 Example Playbooks
@@ -435,8 +438,14 @@ After deployment, manage your app with:
 # Check status
 sudo systemctl status my-api
 
-# View logs
-sudo journalctl -u my-api -f
+# View logs (last 50 lines)
+make log SERVICE=my-api
+
+# View last 100 lines
+make log SERVICE=my-api LINES=100
+
+# Follow logs in real-time
+make log SERVICE=my-api FOLLOW=true
 
 # Restart application
 sudo systemctl restart my-api

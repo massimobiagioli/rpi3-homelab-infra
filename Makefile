@@ -1,4 +1,4 @@
-.PHONY: help list-playbooks run-playbook test-ssh install-deps setup-all health-check deploy
+.PHONY: help list-playbooks run-playbook test-ssh install-deps setup-all health-check deploy log
 
 ANSIBLE_PLAYBOOK = ansible-playbook
 ANSIBLE_INVENTORY = inventory.ini
@@ -53,6 +53,38 @@ ifndef APP
 else
 	@echo "🚀 Deploying application: $(APP)"
 	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/deploy.yml -e "app_name=$(APP)"
+endif
+
+log: # View logs of a service (usage: make log SERVICE=service-name [LINES=50] [FOLLOW=true])
+ifndef SERVICE
+	@echo "❌ Error: Please specify a service name"
+	@echo "Usage: make log SERVICE=service-name [LINES=50] [FOLLOW=true]"
+	@echo ""
+	@echo "📋 Available services:"
+	@echo "  🗄️  mariadb"
+	@echo "  📡 mosquitto"
+	@echo "  ⚡ redis-server"
+	@echo "  📈 grafana-server"
+	@echo "  📝 loki"
+	@if [ -f playbooks/config/apps.yml ]; then \
+		grep "^[a-zA-Z]" playbooks/config/apps.yml | grep -v "^#" | cut -d: -f1 | sed 's/^/  📦 /' || true; \
+	fi
+else
+ifdef FOLLOW
+	@echo "📋 Following logs for: $(SERVICE) (Ctrl+C to exit)"
+ifdef LINES
+	ssh massimo@raspberrypi.local "sudo journalctl -u $(SERVICE) -n $(LINES) -f"
+else
+	ssh massimo@raspberrypi.local "sudo journalctl -u $(SERVICE) -n 50 -f"
+endif
+else
+	@echo "📋 Viewing logs for: $(SERVICE)"
+ifdef LINES
+	ssh massimo@raspberrypi.local "sudo journalctl -u $(SERVICE) -n $(LINES) --no-pager"
+else
+	ssh massimo@raspberrypi.local "sudo journalctl -u $(SERVICE) -n 50 --no-pager"
+endif
+endif
 endif
 
 setup-all: # Install complete HomeLab stack (usage: make setup-all [CLEANUP=true])
