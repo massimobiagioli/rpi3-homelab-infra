@@ -1,0 +1,210 @@
+---
+- name: Deploy FastAPI Application with UV and SystemD
+  hosts: raspberry_pi
+  gather_facts: true
+  become: true
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Validate required parameters
+      fail:
+        msg: "Please specify APP parameter: make deploy APP=app-name"
+      when: app_name is not defined
+
+    - name: Load apps configuration
+      include_vars:
+        file: config/apps.yml
+        name: apps_config
+      delegate_to: localhost
+      become: false
+
+    - name: Check if application exists in apps.yml
+      fail:
+        msg: "Application '{{ app_name }}' not found in config/apps.yml"
+      when: app_name not in apps_config
+
+    - name: Set application configuration
+      set_fact:
+        app_config: "{{ apps_config[app_name] }}"
+
+    - name: Validate application configuration
+      fail:
+        msg: "Missing required field '{{ item }}' for application '{{ app_name }}'"
+      when: item not in app_config
+      loop:
+        - repo
+        - service_file
+        - deploy_path
+
+    - name: Check if service file exists
+      stat:
+        path: "{{ playbook_dir }}/../services/{{ app_config.service_file }}"
+      register: service_file_stat
+      delegate_to: localhost
+      become: false
+
+    - name: Fail if service file doesn't exist
+      fail:
+        msg: "Service file '{{ app_config.service_file }}' not found in services/ directory"
+      when: not service_file_stat.stat.exists
+
+    - name: Display deployment information
+      debug:
+        msg: |
+          🚀 DEPLOYING FASTAPI APPLICATION
+          
+          📋 Application: {{ app_name }}
+          📂 Repository: {{ app_config.repo }}
+          🌿 Branch: {{ app_config.branch | default('main') }}
+          📁 Deploy Path: {{ app_config.deploy_path }}
+          🔧 Service File: {{ app_config.service_file }}
+          👤 User: {{ app_config.user | default('pi') }}
+
+    # Prerequisites
+    - name: Ensure uv is installed
+      shell: which uv
+      register: uv_check
+      failed_when: uv_check.rc != 0
+      changed_when: false
+
+    # Application deployment
+    - name: Create application directory
+      file:
+        path: "{{ app_config.deploy_path }}"
+        state: directory
+        owner: "{{ app_config.user | default('pi') }}"
+        group: "{{ app_config.user | default('pi') }}"
+        mode: '0755'
+
+    - name: Get service name from service file
+      shell: |
+        grep -E '^Description=' {{ playbook_dir }}/../services/{{ app_config.service_file }} | head -1 | cut -d'=' -f2- || echo "{{ app_name }}"
+      register: service_description
+      delegate_to: localhost
+      become: false
+
+    - name: Extract service name for systemctl
+      set_fact:
+        service_name: "{{ app_config.service_file | regex_replace('\\.service$', '') }}"
+
+    - name: Stop existing service if running
+      systemd:
+        name: "{{ service_name }}"
+        state: stopped
+        enabled: false
+      ignore_errors: true
+
+    - name: Clone or update repository
+      git:
+        repo: "{{ app_config.repo }}"
+        dest: "{{ app_config.deploy_path }}"
+        version: "{{ app_config.branch | default('main') }}"
+        force: true
+      become_user: "{{ app_config.user | default('pi') }}"
+
+    - name: Check for requirements files
+      find:
+        paths: "{{ app_config.deploy_path }}"
+        patterns:
+          - "requirements.txt"
+          - "pyproject.toml"
+        recurse: false
+      register: requirements_files
+
+    - name: Create virtual environment with uv
+      shell: |
+        cd {{ app_config.deploy_path }}
+        uv venv .venv
+      become_user: "{{ app_config.user | default('pi') }}"
+      args:
+        creates: "{{ app_config.deploy_path }}/.venv"
+
+    - name: Install dependencies with uv
+      shell: |
+        cd {{ app_config.deploy_path }}
+        source .venv/bin/activate
+        {% if requirements_files.files | length > 0 %}
+        {% for req_file in requirements_files.files %}
+        uv pip install -r {{ req_file.path | basename }}
+        {% endfor %}
+        {% else %}
+        uv pip install fastapi uvicorn
+        {% endif %}
+      become_user: "{{ app_config.user | default('pi') }}"
+
+    - name: Copy systemd service file
+      copy:
+        src: "{{ playbook_dir }}/../services/{{ app_config.service_file }}"
+        dest: "/etc/systemd/system/{{ service_name }}.service"
+        mode: '0644'
+        remote_src: false
+      notify: Reload systemd
+
+    - name: Start and enable service
+      systemd:
+        name: "{{ service_name }}"
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    - name: Extract port from service file for health check
+      shell: |
+        grep -E 'PORT=|--port' {{ playbook_dir }}/../services/{{ app_config.service_file }} | head -1 | grep -oE '[0-9]+' || echo "8000"
+      register: app_port
+      delegate_to: localhost
+      become: false
+      ignore_errors: true
+
+    - name: Wait for application to be ready
+      wait_for:
+        port: "{{ app_port.stdout | default('8000') }}"
+        host: localhost
+        delay: 5
+        timeout: 30
+      ignore_errors: true
+      register: app_ready
+
+    - name: Test application health (if web app)
+      uri:
+        url: "http://localhost:{{ app_port.stdout | default('8000') }}/docs"
+        method: GET
+        timeout: 10
+      register: health_check
+      ignore_errors: true
+      when: "'web' in service_name or 'api' in service_name"
+
+    - name: Display deployment results
+      debug:
+        msg: |
+          🎉 DEPLOYMENT COMPLETED!
+          
+          ✅ Application: {{ app_name }}
+          🔧 Service: {{ service_name }}
+          📁 Path: {{ app_config.deploy_path }}
+          {% if app_port.stdout is defined and ('web' in service_name or 'api' in service_name) %}
+          🌐 URL: http://{{ ansible_default_ipv4.address }}:{{ app_port.stdout }}
+          📚 API Docs: http://{{ ansible_default_ipv4.address }}:{{ app_port.stdout }}/docs
+          🏥 Health Check: {{ 'SUCCESS' if health_check.status | default(0) == 200 else 'PENDING' }}
+          {% endif %}
+          🔌 Port Status: {{ 'OPEN' if app_ready.failed is not defined or not app_ready.failed else 'CLOSED' }}
+          
+          🔧 Service Management:
+          • Status: sudo systemctl status {{ service_name }}
+          • Logs: sudo journalctl -u {{ service_name }} -f
+          • Restart: sudo systemctl restart {{ service_name }}
+          • Stop: sudo systemctl stop {{ service_name }}
+          
+          📁 Application Files: {{ app_config.deploy_path }}
+          🔧 Service File: /etc/systemd/system/{{ service_name }}.service
+          
+          {% if health_check is defined and health_check.status | default(0) == 200 %}
+          🚀 Web application is running successfully!
+          {% else %}
+          ℹ️  Application deployed. Check logs if it's a web service.
+          {% endif %}
+
+  handlers:
+    - name: Reload systemd
+      systemd:
+        daemon_reload: true

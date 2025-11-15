@@ -1,0 +1,15 @@
+[Unit]
+Description=FastAPI Web Application Example
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/apps/fastapi-web-example
+LimitNOFILE=4096
+ExecStart=/opt/apps/fastapi-web-example/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 4
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

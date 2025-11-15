@@ -1,0 +1,26 @@
+# FastAPI Applications Configuration
+# Copy this file to apps.yml and customize your applications
+
+# Configuration format:
+# app_key:
+#   repo: "https://github.com/user/repository.git"
+#   branch: "main"  # optional, defaults to main
+#   service_file: "my-app.service"  # file in services/ directory
+#   deploy_path: "/opt/apps/my-app"  # where to deploy the app
+#   user: "pi"  # user to run as (optional, defaults to pi)
+
+# Examples:
+
+example-web-app:
+  repo: "https://github.com/example/my-fastapi-web.git"
+  branch: "main"
+  service_file: "_fastapi-web-example.service"
+  deploy_path: "/opt/apps/my-web-app"
+  user: "pi"
+
+example-worker-app:
+  repo: "https://github.com/example/my-fastapi-worker.git"
+  branch: "main"
+  service_file: "_fastapi-worker-example.service"
+  deploy_path: "/opt/apps/my-worker-app" 
+  user: "pi"

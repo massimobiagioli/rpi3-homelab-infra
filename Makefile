@@ -1,4 +1,4 @@
-.PHONY: help list-playbooks run-playbook test-ssh install-deps setup-all health-check
+.PHONY: help list-playbooks run-playbook test-ssh install-deps setup-all health-check deploy
 
 ANSIBLE_PLAYBOOK = ansible-playbook
 ANSIBLE_INVENTORY = inventory.ini
@@ -38,6 +38,22 @@ install-deps: # Install required Ansible collections
 health-check: # Run comprehensive health check of all HomeLab services
 	@echo "🏥 Running HomeLab health check..."
 	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/health-check.yml
+
+deploy: # Deploy FastAPI application (usage: make deploy APP=app-name)
+ifndef APP
+	@echo "❌ Error: Please specify an application name"
+	@echo "Usage: make deploy APP=app-name"
+	@echo ""
+	@echo "📋 Available applications:"
+	@if [ -f playbooks/config/apps.yml ]; then \
+		grep "^[a-zA-Z]" playbooks/config/apps.yml | grep -v "^#" | cut -d: -f1 | sed 's/^/  📦 /' || echo "  (No applications configured yet)"; \
+	else \
+		echo "  📄 Copy playbooks/config/apps.example.yml to playbooks/config/apps.yml and configure your apps"; \
+	fi
+else
+	@echo "🚀 Deploying application: $(APP)"
+	$(ANSIBLE_PLAYBOOK) -i $(ANSIBLE_INVENTORY) playbooks/deploy.yml -e "app_name=$(APP)"
+endif
 
 setup-all: # Install complete HomeLab stack (usage: make setup-all [CLEANUP=true])
 ifdef CLEANUP

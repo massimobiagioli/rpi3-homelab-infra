@@ -100,6 +100,8 @@ cp main.yml.example main.yml
 | `make run-playbook-verbose PLAYBOOK=name` | Execute playbook with verbose output | 🔊 Always verbose |
 | `make setup-all` | **Install complete HomeLab stack** | 🏠 **All services at once** |
 | `make setup-all CLEANUP=true` | **Clean install (remove + reinstall)** | 🧹 **Fresh installation** |
+| `make deploy APP=name` | **Deploy FastAPI application** | 🚀 **Deploy your apps** |
+| `make health-check` | Run comprehensive system health check | 🏥 **Check all services** |
 | `make help` | Show all commands | ❓ Full help menu |
 
 ### 📋 Example Playbooks
@@ -241,6 +243,12 @@ make setup-all
 # Clean installation (removes existing installations first)
 make setup-all CLEANUP=true
 
+# Deploy FastAPI applications
+make deploy APP=my-api
+
+# Check system health
+make health-check
+
 # Run custom playbooks (when you create them)
 make run-playbook PLAYBOOK=backup
 make run-playbook PLAYBOOK=monitoring
@@ -352,7 +360,99 @@ make run-playbook PLAYBOOK=loki
   {filename="/var/log/auth.log"}  # Authentication logs
   ```
 
-### 🧪 Testing with Python Script
+### 🚀 FastAPI Application Deployment
+
+### 📦 Setup Application Deployment
+
+**1. Configure your applications:**
+```bash
+# Copy template configuration
+cp playbooks/config/apps.example.yml playbooks/config/apps.yml
+```
+
+**2. Edit apps.yml and add your application:**
+```yaml
+my-api:
+  repo: "https://github.com/myuser/my-fastapi-app.git"
+  branch: "main"  # optional
+  service_file: "my-api.service"
+  deploy_path: "/opt/apps/my-api"
+  user: "pi"  # optional
+```
+
+**3. Create systemd service file:**
+```bash
+# Copy example service file
+cp services/1-fastapi-web-example.service services/my-api.service
+
+# Edit services/my-api.service for your app:
+# - Update paths, ports, environment variables
+# - Modify ExecStart command if needed
+```
+
+### 🎯 Deploy Your Application
+
+**Deploy specific app:**
+```bash
+make deploy APP=my-api
+```
+
+**List available apps:**
+```bash
+make deploy  # Shows configured applications
+```
+
+### 🔧 Application Requirements
+
+Your FastAPI project should have:
+- **requirements.txt** or **pyproject.toml** (for dependencies)
+- **main.py** with FastAPI app (or adjust ExecStart in service file)
+- **Compatible with UV** package manager
+
+### 📁 Application Structure
+
+```
+📂 Your Repository/
+├── main.py              # FastAPI app entry point
+├── requirements.txt     # Dependencies
+├── app/                 # Application code
+│   ├── __init__.py
+│   └── routers/
+└── README.md
+```
+
+### ⚙️ Service Management
+
+After deployment, manage your app with:
+```bash
+# Check status
+sudo systemctl status my-api
+
+# View logs
+sudo journalctl -u my-api -f
+
+# Restart application
+sudo systemctl restart my-api
+
+# Stop application
+sudo systemctl stop my-api
+```
+
+### 🌐 Access Your Application
+
+- **Web UI**: `http://your_pi_ip:PORT`
+- **API Docs**: `http://your_pi_ip:PORT/docs`
+- **OpenAPI JSON**: `http://your_pi_ip:PORT/openapi.json`
+
+### 📋 Example Service Files
+
+The system includes examples:
+- **1-fastapi-web-example.service** - Web API with database
+- **2-fastapi-worker-example.service** - Background worker with Celery
+
+Copy and modify these for your needs.
+
+## 🧪 Testing with Python Script
 
 **Copy and run test script:**
 ```bash

@@ -7,6 +7,14 @@ playbooks/vars/main.yml
 # Health check reports
 reports/
 
+# Application services (exclude all except examples)
+services/*
+!services/_fastapi-web-example.service
+!services/_fastapi-worker-example.service
+
+# Application configuration
+playbooks/config/apps.yml
+
 # IDE
 .vscode/
 
