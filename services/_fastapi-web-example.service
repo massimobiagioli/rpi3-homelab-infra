@@ -6,6 +6,10 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/apps/fastapi-web-example
+Environment="REDIS_HOST=localhost"
+Environment="REDIS_PORT=6379"
+Environment="REDIS_DB=0"
+Environment="REDIS_PWD=xxxxx"
 LimitNOFILE=4096
 ExecStart=/opt/apps/fastapi-web-example/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080 --workers 4
 Restart=on-failure

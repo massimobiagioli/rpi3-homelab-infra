@@ -1,41 +1,19 @@
 [Unit]
-Description=FastAPI Worker Application Example  
-Documentation=Example systemd service for FastAPI background worker
-After=network.target mariadb.service redis-server.service mosquitto.service
-Wants=network.target
+Description=FastAPI Worker Application Example
+After=network.target
 
 [Service]
-Type=exec
-User=pi
-Group=pi
-WorkingDirectory=/opt/apps/my-worker-app
-Environment=PATH=/opt/apps/my-worker-app/.venv/bin:/usr/local/bin:/usr/bin:/bin
-Environment=ENV=production
-Environment=DEBUG=false
-Environment=WORKER_TYPE=celery
-Environment=DATABASE_URL=mysql://user:password@localhost/myapp
-Environment=REDIS_URL=redis://localhost:6379
-Environment=MQTT_BROKER=localhost:1883
-Environment=MQTT_USER=homelab_user
-Environment=MQTT_PASSWORD=your_mqtt_password
-ExecStart=/opt/apps/my-worker-app/.venv/bin/python -m celery worker -A app.celery --loglevel=info
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=my-worker-app
-
-# Security settings
-NoNewPrivileges=yes
-PrivateTmp=yes
-ProtectSystem=strict
-ProtectHome=yes
-ReadWritePaths=/opt/apps/my-worker-app
-RemainAfterExit=no
-
-# Resource limits for Raspberry Pi
-MemoryMax=128M
-CPUQuota=30%
+Type=simple
+User=root
+WorkingDirectory=/opt/apps/fastapi-web-example
+Environment="REDIS_HOST=localhost"
+Environment="REDIS_PORT=6379"
+Environment="REDIS_DB=0"
+Environment="REDIS_PWD=xxxxx"
+LimitNOFILE=4096
+ExecStart=/opt/apps/fastapi-web-example/.venv/bin/celery -A app.worker worker -l info
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
