@@ -174,6 +174,42 @@
       register: promtail_metrics
       ignore_errors: true
 
+    # Deployed Applications Health Check
+    - name: Load apps configuration if exists
+      include_vars:
+        file: config/apps.yml
+        name: apps_config
+      delegate_to: localhost
+      become: false
+      ignore_errors: true
+
+    - name: Get list of configured app names
+      set_fact:
+        configured_apps: "{{ apps_config.keys() | list if apps_config is defined else [] }}"
+
+    - name: Check status of deployed applications
+      systemd:
+        name: "{{ item }}"
+      register: app_services_status
+      become: true
+      loop: "{{ configured_apps }}"
+      ignore_errors: true
+      when: configured_apps | length > 0
+
+    - name: Get port information from service files
+      shell: |
+        if [ -f "/etc/systemd/system/{{ item }}.service" ]; then
+          grep -oP '(?<=--port )[0-9]+' "/etc/systemd/system/{{ item }}.service" || echo "N/A"
+        else
+          echo "N/A"
+        fi
+      register: app_ports
+      become: true
+      loop: "{{ configured_apps }}"
+      ignore_errors: true
+      when: configured_apps | length > 0
+      changed_when: false
+
     # === HEALTH REPORT ===
     - name: Create reports directory
       file:
@@ -192,8 +228,8 @@
         health_report: |
           
           ╔══════════════════════════════════════════════════════════════════╗
-          ║                    🏠 HOMELAB HEALTH CHECK REPORT                ║
-          ║                    {{ ansible_date_time.date }} {{ ansible_date_time.time }}                        ║
+          ║              HOMELAB HEALTH CHECK REPORT                         ║
+          ║                       {{ ansible_date_time.date }} {{ ansible_date_time.time }}                        ║
           ╚══════════════════════════════════════════════════════════════════╝
           
           📊 SYSTEM OVERVIEW:
@@ -260,13 +296,30 @@
              └─ Metrics: {{ 'OK' if promtail_metrics.status|default(0) == 200 else 'FAILED' }}
              └─ Port: 9080
           
+          📦 DEPLOYED APPLICATIONS:
+          ────────────────────────────────────────────────────────────────────
+          {% if configured_apps is defined and configured_apps | length > 0 %}
+          {% for item in app_services_status.results %}
+          {% set app_ok = item.status.ActiveState|default('unknown') == 'active' %}
+          {% set port_info = app_ports.results[loop.index0].stdout|default('N/A') %}
+          {{ '✅' if app_ok else '❌' }} {{ item.item }}
+             └─ Service: {{ item.status.ActiveState|default('unknown') }}
+             └─ Status: {{ item.status.SubState|default('unknown') }}
+             └─ PID: {{ item.status.MainPID|default('N/A') }}
+             └─ Port: {{ port_info }}
+          {% endfor %}
+          {% else %}
+          ℹ️  No deployed applications found
+          💡 Deploy apps with: make deploy APP=<app-name>
+          {% endif %}
+          
           📊 SUMMARY:
           ────────────────────────────────────────────────────────────────────
-          🗄️  Database Services:     {{ '✅' if mariadb_ok else '❌' }} MariaDB
-          📡 Messaging Services:    {{ '✅' if mosquitto_ok else '❌' }} Mosquitto
-          ⚡ Cache Services:        {{ '✅' if redis_ok else '❌' }} Redis  
-          🐍 Development Tools:     {{ '✅' if uv_ok else '❌' }} UV {{ '✅' if git_ok else '❌' }} Git
-          📊 Monitoring Stack:      {{ '✅' if grafana_ok else '❌' }} Grafana {{ '✅' if loki_ok and promtail_ok else '❌' }} Loki/Promtail
+          🗄️  Database Services:    {{ '✅' if mariadb_ok else '❌' }} MariaDB
+          📡  Messaging Services:   {{ '✅' if mosquitto_ok else '❌' }} Mosquitto
+          🗂️  Cache Services:       {{ '✅' if redis_ok else '❌' }} Redis
+          🐍  Development Tools:    {{ '✅' if uv_ok else '❌' }} UV  {{ '✅' if git_ok else '❌' }} Git
+          📊  Monitoring Stack:     {{ '✅' if grafana_ok else '❌' }} Grafana  {{ '✅' if loki_ok and promtail_ok else '❌' }} Loki/Promtail
           
           {% set total_services = 8 %}
           {% set healthy_services = [mariadb_ok, mosquitto_ok, redis_ok, uv_ok, git_ok, grafana_ok, loki_ok, promtail_ok] | select('equalto', true) | list | length %}
