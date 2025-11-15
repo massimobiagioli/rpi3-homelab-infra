@@ -105,6 +105,10 @@ cp main.yml.example main.yml
 | `make log SERVICE=name` | View logs of a service | 📋 `SERVICE=redis-server` |
 | `make log SERVICE=name LINES=100` | View specific number of log lines | 📋 Last 100 lines |
 | `make log SERVICE=name FOLLOW=true` | Follow logs in real-time | 📋 Live log monitoring |
+| `make service-enable SERVICE=name` | Enable and start a service | ✅ Start service on boot |
+| `make service-disable SERVICE=name` | Disable and stop a service | ⛔ Stop service |
+| `make service-status SERVICE=name` | Check service status | 🔍 Check if running |
+| `make undeploy SERVICE=name` | Remove deployed application | 🗑️ Remove app service |
 | `make help` | Show all commands | ❓ Full help menu |
 
 ### 📋 Example Playbooks
@@ -436,7 +440,7 @@ Your FastAPI project should have:
 After deployment, manage your app with:
 ```bash
 # Check status
-sudo systemctl status my-api
+make service-status SERVICE=my-api
 
 # View logs (last 50 lines)
 make log SERVICE=my-api
@@ -447,11 +451,14 @@ make log SERVICE=my-api LINES=100
 # Follow logs in real-time
 make log SERVICE=my-api FOLLOW=true
 
-# Restart application
-sudo systemctl restart my-api
+# Enable and start service
+make service-enable SERVICE=my-api
 
-# Stop application
-sudo systemctl stop my-api
+# Disable and stop service
+make service-disable SERVICE=my-api
+
+# Remove deployed application
+make undeploy SERVICE=my-api
 ```
 
 ### 🌐 Access Your Application

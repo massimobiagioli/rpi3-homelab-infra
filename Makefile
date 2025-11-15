@@ -1,4 +1,4 @@
-.PHONY: help list-playbooks run-playbook test-ssh install-deps setup-all health-check deploy log
+.PHONY: help list-playbooks run-playbook test-ssh install-deps setup-all health-check deploy log service-enable service-disable service-status undeploy
 
 ANSIBLE_PLAYBOOK = ansible-playbook
 ANSIBLE_INVENTORY = inventory.ini
@@ -85,6 +85,90 @@ else
 	ssh massimo@raspberrypi.local "sudo journalctl -u $(SERVICE) -n 50 --no-pager"
 endif
 endif
+endif
+
+service-enable: # Enable and start a service (usage: make service-enable SERVICE=service-name)
+ifndef SERVICE
+	@echo "❌ Error: Please specify a service name"
+	@echo "Usage: make service-enable SERVICE=service-name"
+	@echo ""
+	@echo "📋 Available services:"
+	@echo "  🗄️  mariadb"
+	@echo "  📡 mosquitto"
+	@echo "  ⚡ redis-server"
+	@echo "  📈 grafana-server"
+	@echo "  📝 loki"
+	@if [ -f playbooks/config/apps.yml ]; then \
+		grep "^[a-zA-Z]" playbooks/config/apps.yml | grep -v "^#" | cut -d: -f1 | sed 's/^/  📦 /' || true; \
+	fi
+else
+	@echo "✅ Enabling and starting service: $(SERVICE)"
+	ssh massimo@raspberrypi.local "sudo systemctl enable $(SERVICE) && sudo systemctl start $(SERVICE)"
+	@echo "🔍 Service status:"
+	ssh massimo@raspberrypi.local "sudo systemctl status $(SERVICE) --no-pager -l"
+endif
+
+service-disable: # Disable and stop a service (usage: make service-disable SERVICE=service-name)
+ifndef SERVICE
+	@echo "❌ Error: Please specify a service name"
+	@echo "Usage: make service-disable SERVICE=service-name"
+	@echo ""
+	@echo "📋 Available services:"
+	@echo "  🗄️  mariadb"
+	@echo "  📡 mosquitto"
+	@echo "  ⚡ redis-server"
+	@echo "  📈 grafana-server"
+	@echo "  📝 loki"
+	@if [ -f playbooks/config/apps.yml ]; then \
+		grep "^[a-zA-Z]" playbooks/config/apps.yml | grep -v "^#" | cut -d: -f1 | sed 's/^/  📦 /' || true; \
+	fi
+else
+	@echo "⛔ Disabling and stopping service: $(SERVICE)"
+	ssh massimo@raspberrypi.local "sudo systemctl stop $(SERVICE) && sudo systemctl disable $(SERVICE)"
+	@echo "🔍 Service status:"
+	ssh massimo@raspberrypi.local "sudo systemctl status $(SERVICE) --no-pager -l || true"
+endif
+
+service-status: # Check status of a service (usage: make service-status SERVICE=service-name)
+ifndef SERVICE
+	@echo "❌ Error: Please specify a service name"
+	@echo "Usage: make service-status SERVICE=service-name"
+	@echo ""
+	@echo "📋 Available services:"
+	@echo "  🗄️  mariadb"
+	@echo "  📡 mosquitto"
+	@echo "  ⚡ redis-server"
+	@echo "  📈 grafana-server"
+	@echo "  📝 loki"
+	@if [ -f playbooks/config/apps.yml ]; then \
+		grep "^[a-zA-Z]" playbooks/config/apps.yml | grep -v "^#" | cut -d: -f1 | sed 's/^/  📦 /' || true; \
+	fi
+else
+	@echo "🔍 Checking status for: $(SERVICE)"
+	ssh massimo@raspberrypi.local "sudo systemctl status $(SERVICE) --no-pager -l"
+endif
+
+undeploy: # Remove deployed application (usage: make undeploy SERVICE=service-name)
+ifndef SERVICE
+	@echo "❌ Error: Please specify a service name"
+	@echo "Usage: make undeploy SERVICE=service-name"
+	@echo ""
+	@echo "📋 Available deployed applications:"
+	@if [ -f playbooks/config/apps.yml ]; then \
+		grep "^[a-zA-Z]" playbooks/config/apps.yml | grep -v "^#" | cut -d: -f1 | sed 's/^/  📦 /' || true; \
+	fi
+else
+	@echo "🗑️  Undeploying application: $(SERVICE)"
+	@echo "⏳ Stopping and disabling service..."
+	ssh massimo@raspberrypi.local "sudo systemctl stop $(SERVICE) 2>/dev/null || true"
+	ssh massimo@raspberrypi.local "sudo systemctl disable $(SERVICE) 2>/dev/null || true"
+	@echo "🗑️  Removing service file..."
+	ssh massimo@raspberrypi.local "sudo rm -f /etc/systemd/system/$(SERVICE).service"
+	ssh massimo@raspberrypi.local "sudo systemctl daemon-reload"
+	@echo "✅ Service $(SERVICE) undeployed successfully!"
+	@echo ""
+	@echo "⚠️  Note: Application files in /opt/apps/ were NOT removed."
+	@echo "    To remove them manually: ssh raspberrypi 'sudo rm -rf /opt/apps/SERVICE_NAME'"
 endif
 
 setup-all: # Install complete HomeLab stack (usage: make setup-all [CLEANUP=true])
